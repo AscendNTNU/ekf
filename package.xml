@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ekf</name>
+  <version>0.0.0</version>
+  <description>The ekf package is designed to filter the perception measurements made for IARC mission 9</description>
+
+  <maintainer email="theo.degeorges@gmail.com">theo degeorges</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>ascend_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>tf2</build_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>ascend_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>tf2</exec_depend>
+</package>
