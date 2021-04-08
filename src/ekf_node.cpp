@@ -13,6 +13,8 @@
 
 #include <ros/ros.h>
 
+#define SAMPLE_TIME 30.0
+
 geometry_msgs::PoseStamped module_pose;
 
 class Fuser : public TinyEKF {
@@ -22,13 +24,18 @@ class Fuser : public TinyEKF {
         Fuser()
         {            
             // We approximate the process noise using a small constant
-            this->setQ(0, 0, .0001);
-            this->setQ(1, 1, .0001);
+            this->setQ(0, 0, .005);
+            this->setQ(1, 1, .005);
+            this->setQ(2, 2, .04);
+            this->setQ(3, 3, .04);
+            this->setQ(4, 4, .001);
+            this->setQ(5, 5, .0005);
 
             // Same for measurement noise
-            this->setR(0, 0, .0001);
-            this->setR(1, 1, .0001);
-            this->setR(2, 2, .0001);
+            this->setR(0, 0, .001667);
+            this->setR(1, 1, .001667);
+            this->setR(2, 2, .001667);
+            this->setR(3, 3, .0001667);
         }
 
     protected:
@@ -36,26 +43,36 @@ class Fuser : public TinyEKF {
         void model(double fx[Nsta], double F[Nsta][Nsta], double hx[Mobs], double H[Mobs][Nsta])
         {
             // Process model is f(x) = x
-            fx[0] = this->x[0];
-            fx[1] = this->x[1];
+            fx[0] = this->x[0] + this->x[2]/SAMPLE_TIME;
+            fx[1] = this->x[1] + this->x[3]/SAMPLE_TIME;
+            fx[2] = this->x[2] - pow(this->x[4],2) * this->x[0]/SAMPLE_TIME;
+            fx[3] = this->x[3] - pow(this->x[4],2) * this->x[1]/SAMPLE_TIME;
+            fx[4] = this->x[4];
+            fx[5] = this->x[5];
 
             // So process model Jacobian is identity matrix
-            F[0][0] = 1;
-            F[1][1] = 1;
+            F[0][2] = 1/SAMPLE_TIME;
+            F[1][3] = 1/SAMPLE_TIME;
+            F[2][0] = - pow(this->x[4],2) / SAMPLE_TIME;
+            F[3][1] = - pow(this->x[4],2) / SAMPLE_TIME;
+            F[2][4] = - 2*this->x[4]*this->x[0]/SAMPLE_TIME;
+            F[3][4] = - 2*this->x[4]*this->x[1]/SAMPLE_TIME;
 
-            // Measurement function simplifies the relationship between state and sensor readings for convenience.
-            // A more realistic measurement function would distinguish between state value and measured value; e.g.:
-            //   hx[0] = pow(this->x[0], 1.03);
-            //   hx[1] = 1.005 * this->x[1];
-            //   hx[2] = .9987 * this->x[1] + .001;
-            hx[0] = this->x[0]; // Barometric pressure from previous state
-            hx[1] = this->x[1]; // Baro temperature from previous state
-            hx[2] = this->x[1]; // LM35 temperature from previous state
+            hx[0] = this->x[6] * sin(this->x[0]);
+            hx[1] = this->x[6] * sin(this->x[1]);
+            hx[2] = this->x[6] * cos(this->x[0]) * cos(this->x[1]);
 
             // Jacobian of measurement function
-            H[0][0] = 1;        // Barometric pressure from previous state
-            H[1][1] = 1 ;       // Baro temperature from previous state
-            H[2][1] = 1 ;       // LM35 temperature from previous state
+            H[0][0] = this->x[6] * cos(this->x[0]); 
+            H[1][1] = this->x[6] * cos(this->x[1]);
+            H[2][0] = - this->x[6] * cos(this->x[1]) * sin(this->x[0]);
+            H[2][1] = - this->x[6] * cos(this->x[0]) * sin(this->x[1]);
+            H[3][0] = 1;
+            H[0][5] = sin(this->x[0]);
+            H[1][5] = sin(this->x[1]);
+            H[2][5] = cos(this->x[1])* cos(this->x[0]);
+
+            //todo: transpose H to see if it can be the issue;
         }
 };
 
@@ -65,7 +82,8 @@ void perceptionPoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "ekf");
-    ros::Rate rate(30);
+    ros::Time::init();
+    ros::Rate rate(SAMPLE_TIME);
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Starting up.");
     ros::NodeHandle node_handle;
 
@@ -74,18 +92,18 @@ int main(int argc, char** argv) {
         "/simulator/module/noisy/pose", 10, &perceptionPoseCallback);
 
     //publishers
-    //ros::Publisher filtered_module_pose_pub = 
-    //        node_handle.advertise<geometry_msgs::PoseStamped>("/ekf/module/pose",10);
     ros::Publisher filtered_module_state_pub = 
             node_handle.advertise<mavros_msgs::PositionTarget>("/ekf/module/state",10);
-    //ros::Publisher ekf_state_pub = node_handle.advertise<double[Nsta]>("/ekf/state",10);
-
 
     Fuser ekf;
     double* X;
     mavros_msgs::PositionTarget module_state;
     module_state.header.seq = 0;
 
+    //initiate first state vector
+    ekf.setX(4, 1);
+    ekf.setX(5,2.5);
+    
     while(ros::ok()){
         double z[Mobs]; // x, y, z, pitch
         z[0] = module_pose.pose.position.x;
@@ -106,8 +124,6 @@ int main(int argc, char** argv) {
         const double omega  = X[4];
         const double L_mast = X[5];
         
-        ekf_state_pub.publish(X);
-
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
         module_state.position.x = L_mast * cos(X[0]);
