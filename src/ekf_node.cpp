@@ -43,37 +43,43 @@ class Fuser : public TinyEKF {
 
         void model(double fx[Nsta], double F[Nsta][Nsta], double hx[Mobs], double H[Mobs][Nsta])
         {
-            double L = this->x[5];
-            double w = this->x[4];
+            double p = this->x[0];
+            double r = this->x[1];
+            double pdot = this->x[2];
+            double rdot = this->x[3];
+            double w = this->x[4]; //omega = wave frequency
+            double L = this->x[5]; //length of the mast
+            
             // Process model is f(x) = x
-            fx[0] = this->x[0] + this->x[2]/SAMPLE_TIME;
-            fx[1] = this->x[1] + this->x[3]/SAMPLE_TIME;
-            fx[2] = this->x[2] - pow(w,2) * this->x[0]/SAMPLE_TIME;
-            fx[3] = this->x[3] - pow(w,2) * this->x[1]/SAMPLE_TIME;
+            fx[0] = p + pdot/SAMPLE_TIME;
+            fx[1] = r + rdot/SAMPLE_TIME;
+            fx[2] = pdot - pow(w,2) * p/SAMPLE_TIME;
+            fx[3] = rdot - pow(w,2) * r/SAMPLE_TIME;
             fx[4] = w;
-            fx[5] = this->x[5];
+            fx[5] = L;
 
             // So process model Jacobian is identity matrix
-            F[0][2] = 1/SAMPLE_TIME;
-            F[1][3] = 1/SAMPLE_TIME;
+            F[0][2] = 1.0/SAMPLE_TIME;
+            F[1][3] = 1.0/SAMPLE_TIME;
             F[2][0] = - pow(w,2) / SAMPLE_TIME;
             F[3][1] = - pow(w,2) / SAMPLE_TIME;
-            F[2][4] = - 2*w*this->x[0]/SAMPLE_TIME;
-            F[3][4] = - 2*w*this->x[1]/SAMPLE_TIME;
+            F[2][4] = - 2*w*p/SAMPLE_TIME;
+            F[3][4] = - 2*w*r/SAMPLE_TIME;
 
-            hx[0] = L * sin(this->x[0]);
-            hx[1] = L * sin(this->x[1]);
-            hx[2] = L * cos(this->x[0]) * cos(this->x[1]);
+            hx[0] = L * sin(p);
+            hx[1] = L * sin(r);
+            hx[2] = L * cos(p) * cos(r);
+            hx[3] = p;
 
             // Jacobian of measurement function
-            H[0][0] = L * cos(this->x[0]); 
-            H[1][1] = L * cos(this->x[1]);
-            H[2][0] = - L * cos(this->x[1]) * sin(this->x[0]);
-            H[2][1] = - L * cos(this->x[0]) * sin(this->x[1]);
-            H[3][0] = 1;
-            H[0][5] = sin(this->x[0]);
-            H[1][5] = sin(this->x[1]);
-            H[2][5] = cos(this->x[1])* cos(this->x[0]);
+            H[0][0] = L * cos(p); 
+            H[1][1] = L * cos(r);
+            H[2][0] = - L * cos(r) * sin(p);
+            H[2][1] = - L * cos(p) * sin(r);
+            H[3][0] = 1.0;
+            H[0][5] = sin(p);
+            H[1][5] = sin(r);
+            H[2][5] = cos(r)* cos(p);
 
             //todo: transpose H to see if it can be the issue;
         }
