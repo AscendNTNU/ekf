@@ -12,6 +12,8 @@
 #include <iostream>
 #include <iomanip> //to set the float precision with cout
 
+#define DEBUG false
+
 /**
  * @brief cout the matrix elements
  * 
@@ -20,6 +22,7 @@
  * @param m number of row
  */
 void printMatrix(double* A,int n, int m, char* text){
+    #if DEBUG
     using namespace std;
     cout << text << endl;
     cout << fixed << std::setprecision(3);
@@ -30,6 +33,7 @@ void printMatrix(double* A,int n, int m, char* text){
         cout << endl;
     }
     cout << endl;
+    #endif
 }
 
 /* Cholesky-decomposition matrix-inversion code, adapated from
