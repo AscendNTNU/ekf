@@ -43,31 +43,33 @@ class Fuser : public TinyEKF {
 
         void model(double fx[Nsta], double F[Nsta][Nsta], double hx[Mobs], double H[Mobs][Nsta])
         {
+            double L = this->x[5];
+            double w = this->x[4];
             // Process model is f(x) = x
             fx[0] = this->x[0] + this->x[2]/SAMPLE_TIME;
             fx[1] = this->x[1] + this->x[3]/SAMPLE_TIME;
-            fx[2] = this->x[2] - pow(this->x[4],2) * this->x[0]/SAMPLE_TIME;
-            fx[3] = this->x[3] - pow(this->x[4],2) * this->x[1]/SAMPLE_TIME;
-            fx[4] = this->x[4];
+            fx[2] = this->x[2] - pow(w,2) * this->x[0]/SAMPLE_TIME;
+            fx[3] = this->x[3] - pow(w,2) * this->x[1]/SAMPLE_TIME;
+            fx[4] = w;
             fx[5] = this->x[5];
 
             // So process model Jacobian is identity matrix
             F[0][2] = 1/SAMPLE_TIME;
             F[1][3] = 1/SAMPLE_TIME;
-            F[2][0] = - pow(this->x[4],2) / SAMPLE_TIME;
-            F[3][1] = - pow(this->x[4],2) / SAMPLE_TIME;
-            F[2][4] = - 2*this->x[4]*this->x[0]/SAMPLE_TIME;
-            F[3][4] = - 2*this->x[4]*this->x[1]/SAMPLE_TIME;
+            F[2][0] = - pow(w,2) / SAMPLE_TIME;
+            F[3][1] = - pow(w,2) / SAMPLE_TIME;
+            F[2][4] = - 2*w*this->x[0]/SAMPLE_TIME;
+            F[3][4] = - 2*w*this->x[1]/SAMPLE_TIME;
 
-            hx[0] = this->x[6] * sin(this->x[0]);
-            hx[1] = this->x[6] * sin(this->x[1]);
-            hx[2] = this->x[6] * cos(this->x[0]) * cos(this->x[1]);
+            hx[0] = L * sin(this->x[0]);
+            hx[1] = L * sin(this->x[1]);
+            hx[2] = L * cos(this->x[0]) * cos(this->x[1]);
 
             // Jacobian of measurement function
-            H[0][0] = this->x[6] * cos(this->x[0]); 
-            H[1][1] = this->x[6] * cos(this->x[1]);
-            H[2][0] = - this->x[6] * cos(this->x[1]) * sin(this->x[0]);
-            H[2][1] = - this->x[6] * cos(this->x[0]) * sin(this->x[1]);
+            H[0][0] = L * cos(this->x[0]); 
+            H[1][1] = L * cos(this->x[1]);
+            H[2][0] = - L * cos(this->x[1]) * sin(this->x[0]);
+            H[2][1] = - L * cos(this->x[0]) * sin(this->x[1]);
             H[3][0] = 1;
             H[0][5] = sin(this->x[0]);
             H[1][5] = sin(this->x[1]);
@@ -129,8 +131,8 @@ int main(int argc, char** argv) {
 
     while(ros::ok()){
         double z[Mobs]; // x, y, z, pitch
-        z[0] = module_pose.pose.position.x;
-        z[1] = module_pose.pose.position.y;
+        z[0] = module_pose.pose.position.x-0.2; //mast offset
+        z[1] = module_pose.pose.position.y+10.0;//mast offset
         z[2] = module_pose.pose.position.z;
         
         //extracting the pitch from the quaternion
