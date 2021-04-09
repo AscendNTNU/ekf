@@ -9,6 +9,28 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
+#include <iomanip> //to set the float precision with cout
+
+/**
+ * @brief cout the matrix elements
+ * 
+ * @param A the matrix to print
+ * @param n number of lines
+ * @param m number of row
+ */
+void printMatrix(double* A,int n, int m, char* text){
+    using namespace std;
+    cout << text << endl;
+    cout << fixed << std::setprecision(3);
+    for (int i = 0; i<n ; i++){
+        for (int j = 0; j<m; j++){
+            cout << A[i*m+j] << "\t";
+        }
+        cout << endl;
+    }
+    cout << endl;
+}
 
 /* Cholesky-decomposition matrix-inversion code, adapated from
    http://jean-pierre.moreau.pagesperso-orange.fr/Cplus/choles_cpp.txt */
@@ -307,20 +329,29 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.tmp0, ekf.Ft, ekf.Pp, n, n, n);
     accum(ekf.Pp, ekf.Q, n, n);
 
+    printMatrix(ekf.Pp,n,n,"Pp: ");
+
     /* G_k = P_k H^T_k (H_k P_k H^T_k + R)^{-1} */
     transpose(ekf.H, ekf.Ht, m, n);
     mulmat(ekf.Pp, ekf.Ht, ekf.tmp1, n, n, m);
+    printMatrix(ekf.tmp1,n,n,"Pp * H': ");
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
+    printMatrix(ekf.tmp3,n,n,"S: ");
     if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)) return 1;
+    printMatrix(ekf.tmp4,n,n,"S-1: ");
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
+    printMatrix(ekf.G,n,m, "K gain matrix: ");
 
     /* \hat{x}_k = \hat{x_k} + G_k(z_k - h(\hat{x}_k)) */
-    sub(z, ekf.hx, ekf.tmp5, m); //todo: ekf.hx should be h(Xp) instead of H(x)
+    sub(z, ekf.hx, ekf.tmp5, m); 
+//    printMatrix(z,m,1, "z: ");
+//    printMatrix(ekf.hx,m,1, "hx: ");
+//    printMatrix(ekf.tmp5,m,1, "z - hx: ");
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
-
+    
     /* P_k = (I - G_k H_k) P_k */
     mulmat(ekf.G, ekf.H, ekf.tmp0, n, m, n);
     negate(ekf.tmp0, n, n);

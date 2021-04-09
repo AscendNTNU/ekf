@@ -66,10 +66,10 @@ class Fuser : public TinyEKF {
             F[2][4] = - 2*w*p/SAMPLE_TIME;
             F[3][4] = - 2*w*r/SAMPLE_TIME;
 
-            hx[0] = L * sin(p);
-            hx[1] = L * sin(r);
-            hx[2] = L * cos(p) * cos(r);
-            hx[3] = p;
+            hx[0] = L * sin(fx[0]);
+            hx[1] = L * sin(fx[1]);
+            hx[2] = L * cos(fx[0]) * cos(fx[1]);
+            hx[3] = fx[0];
 
             // Jacobian of measurement function
             H[0][0] = L * cos(p); 
@@ -80,8 +80,6 @@ class Fuser : public TinyEKF {
             H[0][5] = sin(p);
             H[1][5] = sin(r);
             H[2][5] = cos(r)* cos(p);
-
-            //todo: transpose H to see if it can be the issue;
         }
 };
 
