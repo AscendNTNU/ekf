@@ -317,7 +317,7 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
 
     /* \hat{x}_k = \hat{x_k} + G_k(z_k - h(\hat{x}_k)) */
-    sub(z, ekf.hx, ekf.tmp5, m);
+    sub(z, ekf.hx, ekf.tmp5, m); //todo: ekf.hx should be h(Xp) instead of H(x)
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
 

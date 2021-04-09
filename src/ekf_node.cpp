@@ -1,19 +1,20 @@
 
 // These must be defined before including TinyEKF.h
-#define Nsta 6     // Two state values: pressure, temperature
-#define Mobs 4     // Three measurements: baro pressure, baro temperature, LM35 temperature
+#define Nsta 6     // Nb states
+#define Mobs 4     // Nb measurements
 #include "TinyEKF.h"
 
 
 
 #include <geometry_msgs/PoseStamped.h>
 #include <mavros_msgs/PositionTarget.h>
+#include <mavros_msgs/DebugValue.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <ros/ros.h>
 
-#define SAMPLE_TIME 30.0
+#define SAMPLE_TIME 25.0
 
 geometry_msgs::PoseStamped module_pose;
 
@@ -94,16 +95,38 @@ int main(int argc, char** argv) {
     //publishers
     ros::Publisher filtered_module_state_pub = 
             node_handle.advertise<mavros_msgs::PositionTarget>("/ekf/module/state",10);
+    ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
+    ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
     Fuser ekf;
-    double* X;
+    double X[Nsta];
     mavros_msgs::PositionTarget module_state;
     module_state.header.seq = 0;
+
+    mavros_msgs::DebugValue ekf_state_vector;
+    ekf_state_vector.header.seq = 0;
+    //ekf_state_vector.index = -1;
+    ekf_state_vector.type = mavros_msgs::DebugValue::TYPE_DEBUG_ARRAY;
+    ekf_state_vector.data.resize(Nsta);
+
+    mavros_msgs::DebugValue ekf_meas_vector;
+    ekf_meas_vector.header.seq = 0;
+    //ekf_meas_vector.index = -1;
+    ekf_meas_vector.type = mavros_msgs::DebugValue::TYPE_DEBUG_ARRAY;
 
     //initiate first state vector
     ekf.setX(4, 1);
     ekf.setX(5,2.5);
-    
+
+    module_pose.header.seq = 0;
+    //wait for first measurement
+    while(module_pose.header.seq ==0)
+    {
+        ros::spinOnce();
+        rate.sleep();
+    }
+
+
     while(ros::ok()){
         double z[Mobs]; // x, y, z, pitch
         z[0] = module_pose.pose.position.x;
@@ -119,11 +142,23 @@ int main(int argc, char** argv) {
         // it to zero.
         z[3] = std::isnan(pitch) ? 0.0 : pitch;
 
-        ekf.step(z);
-        X = ekf.getX(); // p, r, p', r', omega, L_mast
-        const double omega  = X[4];
+        if(!ekf.step(z))
+            std::cout << "error with ekf step" <<std::endl;
+        
+        for(int i =0; i< Nsta;i++)
+            X[i] = ekf.getX(i); // p, r, p', r', omega, L_mast
         const double L_mast = X[5];
         
+        for(int i =0; i< Nsta;i++)
+            ekf_state_vector.data.assign(X,X+Nsta);
+        ekf_state_vector.header.seq++;
+        ekf_state_pub.publish(ekf_state_vector);        
+
+        ekf_meas_vector.data.assign(z,z+Mobs);
+        ekf_meas_vector.header.seq++;
+        ekf_meas_vector.header.stamp = ros::Time::now();
+        ekf_meas_pub.publish(ekf_meas_vector);
+
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
         module_state.position.x = L_mast * cos(X[0]);
