@@ -12,6 +12,8 @@ start the node : `rosrun ekf ekf_node`
 
 # Publishing topics:
 
-/ekf/measurement: measurement vector used by the kf
-/ekf/module/state:output of the filter, position and velocity of the module
-/ekf/state      : state vector of the kf
+`/ekf/measurement`: measurement vector used by the kf
+
+`/ekf/module/state`:output of the filter, position and velocity of the module
+
+`/ekf/state`      : state vector of the kf
