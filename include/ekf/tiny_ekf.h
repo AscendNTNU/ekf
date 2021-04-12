@@ -56,3 +56,5 @@ void ekf_init(void * ekf, int n, int m);
   * @return 0 on success, 1 on failure caused by non-positive-definite matrix.
   */
 int ekf_step(void * ekf, double * z);
+
+void printMatrix(double* A,int n, int m, char* text);

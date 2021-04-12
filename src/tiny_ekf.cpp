@@ -333,26 +333,26 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.tmp0, ekf.Ft, ekf.Pp, n, n, n);
     accum(ekf.Pp, ekf.Q, n, n);
 
-    printMatrix(ekf.Pp,n,n,"Pp: ");
+    printMatrix(ekf.Pp,n,n,(char*)"Pp: ");
 
     /* G_k = P_k H^T_k (H_k P_k H^T_k + R)^{-1} */
     transpose(ekf.H, ekf.Ht, m, n);
     mulmat(ekf.Pp, ekf.Ht, ekf.tmp1, n, n, m);
-    printMatrix(ekf.tmp1,n,n,"Pp * H': ");
+    printMatrix(ekf.tmp1,n,n,(char*)"Pp * H': ");
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    printMatrix(ekf.tmp3,n,n,"S: ");
+    printMatrix(ekf.tmp3,n,n,(char*)"S: ");
     if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)) return 1;
-    printMatrix(ekf.tmp4,n,n,"S-1: ");
+    printMatrix(ekf.tmp4,n,n,(char*)"S-1: ");
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
-    printMatrix(ekf.G,n,m, "K gain matrix: ");
+    printMatrix(ekf.G,n,m, (char*)"K gain matrix: ");
 
     /* \hat{x}_k = \hat{x_k} + G_k(z_k - h(\hat{x}_k)) */
     sub(z, ekf.hx, ekf.tmp5, m); 
-//    printMatrix(z,m,1, "z: ");
-//    printMatrix(ekf.hx,m,1, "hx: ");
-//    printMatrix(ekf.tmp5,m,1, "z - hx: ");
+//    printMatrix(z,m,1, (char*)"z: ");
+//    printMatrix(ekf.hx,m,1, (char*)"hx: ");
+//    printMatrix(ekf.tmp5,m,1, (char*)"z - hx: ");
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
     

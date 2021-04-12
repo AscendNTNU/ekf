@@ -124,6 +124,20 @@ int main(int argc, char** argv) {
     ekf.setX(4, 1);
     ekf.setX(5,2.5);
 
+    //testing one step for debugging:
+    double z[Mobs]; // x, y, z, pitch
+    z[0] = 0.5;
+    z[1] = 0.5;
+    z[2] = 1.9;
+    z[3] = 0.25;
+    ekf.step(z);
+    std::cout << "X = ";
+    for(int i =0; i< Nsta;i++){
+            std::cout << ekf.getX(i) << "\t"; // p, r, p', r', omega, L_mast
+    }
+    std::cout << std::endl;
+    //result: X = 0.22613     0.189871        4.64347e-310    4.36543e-310    1       2.36156
+
     module_pose.header.seq = 0;
     //wait for first measurement
     while(module_pose.header.seq ==0)
