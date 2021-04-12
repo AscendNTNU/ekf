@@ -327,6 +327,7 @@ int ekf_step(void * v, double * z)
     ekf_t ekf;
     unpack(v, &ekf, n, m); 
  
+    printMatrix(ekf.F,n,n,(char*)"F: ");
     /* P_k = F_{k-1} P_{k-1} F^T_{k-1} + Q_{k-1} */
     mulmat(ekf.F, ekf.P, ekf.tmp0, n, n, n);
     transpose(ekf.F, ekf.Ft, n, n);
@@ -338,13 +339,13 @@ int ekf_step(void * v, double * z)
     /* G_k = P_k H^T_k (H_k P_k H^T_k + R)^{-1} */
     transpose(ekf.H, ekf.Ht, m, n);
     mulmat(ekf.Pp, ekf.Ht, ekf.tmp1, n, n, m);
-    printMatrix(ekf.tmp1,n,n,(char*)"Pp * H': ");
+    //printMatrix(ekf.tmp1,n,n,(char*)"Pp * H': ");
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    printMatrix(ekf.tmp3,n,n,(char*)"S: ");
+    //printMatrix(ekf.tmp3,n,n,(char*)"S: ");
     if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)) return 1;
-    printMatrix(ekf.tmp4,n,n,(char*)"S-1: ");
+    //printMatrix(ekf.tmp4,n,n,(char*)"S-1: ");
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
     printMatrix(ekf.G,n,m, (char*)"K gain matrix: ");
 
@@ -355,13 +356,14 @@ int ekf_step(void * v, double * z)
 //    printMatrix(ekf.tmp5,m,1, (char*)"z - hx: ");
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
+    printMatrix(ekf.x,1,n,(char*)"X = ");
     
     /* P_k = (I - G_k H_k) P_k */
     mulmat(ekf.G, ekf.H, ekf.tmp0, n, m, n);
     negate(ekf.tmp0, n, n);
     mat_addeye(ekf.tmp0, n);
     mulmat(ekf.tmp0, ekf.Pp, ekf.P, n, n, n);
-
+    printMatrix(ekf.P,n,n,(char*)"P = ");
     /* success */
     return 0;
 }
