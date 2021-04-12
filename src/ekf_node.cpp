@@ -14,9 +14,64 @@
 
 #include <ros/ros.h>
 
+#include <iostream>
+#include <fstream>
+#include <unistd.h> //to get the current directory
+
+
 #define SAMPLE_TIME 25.0
 
 geometry_msgs::PoseStamped module_pose;
+
+const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../../../ekf_output.txt";
+const std::string reference_state_path = std::string(get_current_dir_name()) + "/../../../reference_state.txt";
+//todo: it may be an issue calling this file the same name as in Fluid
+
+//todo: should the title be an arrawy of char* ?
+/**
+ * @brief initialize the data file with a title. 
+ * Should include the time as a first member
+ * 
+ * @param file_name name of the file to init
+ * @param title array of names separated by tabulations
+ */
+void initLog(const std::string file_name, std::string title)
+{ //create a header for the logfile.
+    std::ofstream save_file_f;
+     save_file_f.open(file_name);
+    if(save_file_f.is_open())
+    {
+        save_file_f << title << std::endl;
+        save_file_f.close();
+    }
+    else
+    {
+        ROS_INFO_STREAM(ros::this_node::getName().c_str() << "could not open " << file_name);
+    }
+}
+
+/**
+ * @brief save the given data into the file
+ * 
+ * @param file_name: the name of the file
+ * @param data An array of the data to save
+ * @param n the number of elements
+ */
+void saveLog(const std::string file_name, double* data, int n, int precision = 3)
+{
+    std::ofstream save_file_f;
+    save_file_f.open (file_name, std::ios::app);
+    if(save_file_f.is_open())
+    {
+        save_file_f << std::fixed << std::setprecision(precision) //only 3 decimals
+                    << ros::Time::now() << "\t";
+        for (int i =0; i<n;i++){
+            save_file_f << data[i] << "\t";
+        }
+        save_file_f << std::endl;
+        save_file_f.close();
+    }
+}
 
 class Fuser : public TinyEKF {
 
@@ -107,6 +162,8 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
+    initLog(ekf_output_path,"time\tpose_x\tpose_y\tpose_z\tvel_x\tvel_y\twave_freq\tmast_length");
+    initLog(reference_state_path,"time\tpose_x\tpose_y\tpose_z"); //\vel_x\vel_y\vel_z");
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -135,7 +192,8 @@ int main(int argc, char** argv) {
         rate.sleep();
     }
 
-
+    ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
+    
     while(ros::ok()){
         double z[Mobs]; // x, y, z, pitch
         z[0] = module_pose.pose.position.x-0.2; //mast offset
@@ -153,13 +211,13 @@ int main(int argc, char** argv) {
 
         if(!ekf.step(z))
             std::cout << "error with ekf step" <<std::endl;
+            //todo: restart the kf whith current state ASAP
         
         for(int i =0; i< Nsta;i++)
             X[i] = ekf.getX(i); // p, r, p', r', omega, L_mast
         const double L_mast = X[5];
         
-        for(int i =0; i< Nsta;i++)
-            ekf_state_vector.data.assign(X,X+Nsta);
+        ekf_state_vector.data.assign(X,X+Nsta);
         ekf_state_vector.header.seq++;
         ekf_state_pub.publish(ekf_state_vector);        
 
@@ -177,6 +235,20 @@ int main(int argc, char** argv) {
         module_state.velocity.y = L_mast * X[3];
         module_state.velocity.z = 0; //Not used, so not worth doing the calculations
         filtered_module_state_pub.publish(module_state);
+
+        //save some data:
+        double ekf_output_data[7];
+        ekf_output_data[0] = module_state.position.x;
+        ekf_output_data[1] = module_state.position.y;
+        ekf_output_data[2] = module_state.position.z;
+        ekf_output_data[3] = module_state.velocity.x;
+        ekf_output_data[4] = module_state.velocity.y;
+        ekf_output_data[5] = X[4];
+        ekf_output_data[6] = X[5];
+        saveLog(ekf_output_path,ekf_output_data,7,4);
+
+        saveLog(reference_state_path,z,3,4);
+        
         ros::spinOnce();
         rate.sleep();
     }
