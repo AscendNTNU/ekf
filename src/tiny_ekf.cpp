@@ -12,7 +12,7 @@
 #include <iostream>
 #include <iomanip> //to set the float precision with cout
 
-#define DEBUG false
+//#define DEBUG true
 
 /**
  * @brief cout the matrix elements
@@ -343,7 +343,7 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    //printMatrix(ekf.tmp3,n,n,(char*)"S: ");
+    printMatrix(ekf.tmp3,n,n,(char*)"S: ");
     if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)) return 1;
     //printMatrix(ekf.tmp4,n,n,(char*)"S-1: ");
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);

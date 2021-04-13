@@ -2,6 +2,7 @@
 // These must be defined before including TinyEKF.h
 #define Nsta 6     // Nb states
 #define Mobs 4     // Nb measurements
+#define DEBUG false// print the matrices elements
 #include "TinyEKF.h"
 
 
@@ -64,9 +65,9 @@ void saveLog(const std::string file_name, double* data, int n, int precision = 3
     if(save_file_f.is_open())
     {
         save_file_f << std::fixed << std::setprecision(precision) //only 3 decimals
-                    << ros::Time::now() << "\t";
+                    << ros::Time::now();
         for (int i =0; i<n;i++){
-            save_file_f << data[i] << "\t";
+            save_file_f << "\t" << data[i];
         }
         save_file_f << std::endl;
         save_file_f.close();
@@ -228,8 +229,8 @@ int main(int argc, char** argv) {
 
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
-        module_state.position.x = L_mast * cos(X[0]);
-        module_state.position.y = L_mast * cos(X[1]);
+        module_state.position.x = L_mast * sin(X[0]);
+        module_state.position.y = L_mast * sin(X[1]);
         module_state.position.z = L_mast * cos(X[0]) * cos(X[1]);
         module_state.velocity.x = L_mast * X[2];
         module_state.velocity.y = L_mast * X[3];
@@ -247,8 +248,14 @@ int main(int argc, char** argv) {
         ekf_output_data[6] = X[5];
         saveLog(ekf_output_path,ekf_output_data,7,4);
 
+        std::cout << std::fixed << std::setprecision(4) << "X =\t";
+        for(int i = 0 ; i<7 ; i++){
+            std::cout << ekf_output_data[i] << "\t";
+        }
+        std::cout << std::endl;
+
         saveLog(reference_state_path,z,3,4);
-        
+
         ros::spinOnce();
         rate.sleep();
     }
