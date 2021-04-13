@@ -22,18 +22,23 @@
 #define DEBUG true
 #endif
 
-double getDeterminant(double* vect,int dimension) {
+double getDeterminant(const std::vector<std::vector<double>> vect) {
+    if(vect.size() != vect[0].size()) {
+        throw std::runtime_error("Matrix is not quadratic");
+    } 
+    int dimension = vect.size();
+
     if(dimension == 0) {
         return 1;
     }
 
     if(dimension == 1) {
-        return vect[0];
+        return vect[0][0];
     }
 
     //Formula for 2x2-matrix
     if(dimension == 2) {
-        return vect[0] * vect[3] - vect[1] * vect[2];
+        return vect[0][0] * vect[1][1] - vect[0][1] * vect[1][0];
     }
 
     double result = 0;
@@ -41,34 +46,34 @@ double getDeterminant(double* vect,int dimension) {
     for(int i = 0; i < dimension; i++) {
 
         //Submatrix
-        double subVect[(dimension-1)*(dimension-1)];
+        std::vector<std::vector<double>> subVect(dimension - 1, std::vector<double> (dimension - 1));
         for(int m = 1; m < dimension; m++) {
             int z = 0;
             for(int n = 0; n < dimension; n++) {
                 if(n != i) {
-                    subVect[(m-1)*(dimension-1)+z] = vect[m*dimension+n];
+                    subVect[m-1][z] = vect[m][n];
                     z++;
                 }
             }
         }
 
         //recursive call
-        result = result + sign * vect[i] * getDeterminant(subVect);
+        result = result + sign * vect[0][i] * getDeterminant(subVect);
         sign = -sign;
     }
 
     return result;
 }
 
-double* getTranspose(double* matrix1, int n, int m) {
+std::vector<std::vector<double>> getTranspose(const std::vector<std::vector<double>> matrix1) {
 
     //Transpose-matrix: height = width(matrix), width = height(matrix)
-    double solution[n*m];
+    std::vector<std::vector<double>> solution(matrix1[0].size(), std::vector<double> (matrix1.size()));
 
     //Filling solution-matrix
-    for(size_t i = 0; i < n; i++) {
-        for(size_t j = 0; j < m; j++) {
-            solution[j*][i] = matrix1[i][j];
+    for(size_t i = 0; i < matrix1.size(); i++) {
+        for(size_t j = 0; j < matrix1[0].size(); j++) {
+            solution[j][i] = matrix1[i][j];
         }
     }
     return solution;
@@ -470,32 +475,32 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    printMatrix(ekf.tmp3,n,n,(char*)"S: ");
+    printMatrix(ekf.tmp3,m,m,(char*)"S: ");
 
-    if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)) return 1;
-
-    printMatrix(ekf.tmp4,n,n,(char*)"S-1: ");
+   
 
 
-    std::vector<std::vector<double>> matrix(n, std::vector<double> (n));
-    std::vector<std::vector<double>> inverse_matrix(n, std::vector<double> (n));
-    for(int i = 0;i<n;i++){
-        for (int j = 0; j<n ; j++){
-            matrix[i][j]=ekf.tmp3[i*n+j];
+    std::vector<std::vector<double>> matrix(m, std::vector<double> (m));
+    std::vector<std::vector<double>> inverse_matrix(m, std::vector<double> (m));
+    for(int i = 0;i<m;i++){
+        for (int j = 0; j<m ; j++){
+            matrix[i][j]=ekf.tmp3[i*m+j];
         }
     }
     printMatrix_vector(matrix);
     inverse_matrix = getInverse(matrix);
-    std::cout << "inverse matrix: "<<std::endl;
+
+    printMatrix(ekf.tmp4,m,m,(char*)"S-1: ");
+    std::cout << "inv matrix: "<<std::endl;
     printMatrix_vector(inverse_matrix);
-    for(int i = 0;i<n;i++){
-        for (int j = 0; j<n ; j++){
-            ekf.tmp4[i*n+j] = matrix[i][j];
+    for(int i = 0;i<m;i++){
+        for (int j = 0; j<m ; j++){
+            ekf.tmp4[i*m+j] = inverse_matrix[i][j];
         }
     }
     
 
-    printMatrix(ekf.tmp4,n,n,(char*)"from normal inverse: S-1: ");
+    //printMatrix(ekf.tmp4,n,n,(char*)"from normal inverse: S-1: ");
     
     
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
