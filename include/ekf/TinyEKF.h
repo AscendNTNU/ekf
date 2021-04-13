@@ -74,6 +74,10 @@ class TinyEKF {
             this->ekf.Q[i][j] = value; 
         }
 
+        double getQ(int i, int j){
+            return this->ekf.Q[i][i];
+        }
+
         /**
          * Sets the specified value of the observation noise covariance. <i>R<sub>i,j</sub> = value</i>
          * @param i row index

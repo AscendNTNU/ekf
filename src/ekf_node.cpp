@@ -2,7 +2,7 @@
 // These must be defined before including TinyEKF.h
 #define Nsta 6     // Nb states
 #define Mobs 4     // Nb measurements
-#define DEBUG false// print the matrices elements
+#define DEBUG true// print the matrices elements
 #include "TinyEKF.h"
 
 
@@ -26,6 +26,7 @@ geometry_msgs::PoseStamped module_pose;
 
 const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../../../ekf_output.txt";
 const std::string reference_state_path = std::string(get_current_dir_name()) + "/../../../reference_state.txt";
+
 //todo: it may be an issue calling this file the same name as in Fluid
 
 //todo: should the title be an arrawy of char* ?
@@ -81,18 +82,21 @@ class Fuser : public TinyEKF {
         Fuser()
         {            
             // We approximate the process noise using a small constant
-            this->setQ(0, 0, .005);
-            this->setQ(1, 1, .005);
-            this->setQ(2, 2, .04);
-            this->setQ(3, 3, .04);
-            this->setQ(4, 4, .001);
-            this->setQ(5, 5, .0005);
+            this->setQ(0, 0, 0.5);
+            this->setQ(1, 1, 0.5);
+            this->setQ(2, 2, 4.0);
+            this->setQ(3, 3, 4.0);
+            this->setQ(4, 4, 0.1);
+            this->setQ(5, 5, 0.05);
 
             // Same for measurement noise
-            this->setR(0, 0, .001667);
-            this->setR(1, 1, .001667);
-            this->setR(2, 2, .001667);
-            this->setR(3, 3, .0001667);
+            this->setR(0, 0, .1667);
+            this->setR(1, 1, .1667);
+            this->setR(2, 2, .1667);
+            this->setR(3, 3, .01667);
+
+            for(int i =0;i<Nsta;i++)
+                this->setP(i,i,this->getQ(i,i));
         }
 
     protected:
