@@ -2,7 +2,7 @@
 // These must be defined before including TinyEKF.h
 #define Nsta 6     // Nb states
 #define Mobs 4     // Nb measurements
-#define DEBUG true// print the matrices elements
+#define DEBUG false// print the matrices elements
 #include "TinyEKF.h"
 
 
@@ -26,6 +26,7 @@ geometry_msgs::PoseStamped module_pose;
 
 const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../../../ekf_output.txt";
 const std::string reference_state_path = std::string(get_current_dir_name()) + "/../../../reference_state.txt";
+const std::string gt_reference_path = std::string(get_current_dir_name()) + "/../../../gt_reference.txt";
 
 //todo: it may be an issue calling this file the same name as in Fluid
 
@@ -82,17 +83,17 @@ class Fuser : public TinyEKF {
         Fuser()
         {            
             // We approximate the process noise using a small constant
-            this->setQ(0, 0, 0.5);
-            this->setQ(1, 1, 0.5);
-            this->setQ(2, 2, 4.0);
-            this->setQ(3, 3, 4.0);
-            this->setQ(4, 4, 0.1);
-            this->setQ(5, 5, 0.05);
+            this->setQ(0, 0, 0.005);
+            this->setQ(1, 1, 0.005);
+            this->setQ(2, 2, 0.0040);
+            this->setQ(3, 3, 0.0040);
+            this->setQ(4, 4, 0.001);
+            this->setQ(5, 5, 0.001);
 
             // Same for measurement noise
             this->setR(0, 0, .2667);
-            this->setR(1, 1, .2667);
-            this->setR(2, 2, .2667);
+            this->setR(1, 1, .5667);
+            this->setR(2, 2, .5667);
             this->setR(3, 3, .02667);
 
             for(int i =0;i<Nsta;i++)
@@ -150,6 +151,15 @@ void perceptionPoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
 }
 
+void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
+    double temp[3];
+    temp[0] = module_pose_ptr->pose.position.x-0.2;
+    temp[1] = module_pose_ptr->pose.position.y+10;
+    temp[2] = module_pose_ptr->pose.position.z;
+    saveLog(gt_reference_path,temp,3,4);
+}
+
+
 int main(int argc, char** argv) {
     ros::init(argc, argv, "ekf");
     ros::Time::init();
@@ -160,6 +170,8 @@ int main(int argc, char** argv) {
     //subscribers
     ros::Subscriber module_pose_sub = node_handle.subscribe(
         "/simulator/module/noisy/pose", 10, &perceptionPoseCallback);
+    ros::Subscriber gt_module_pose_sub = node_handle.subscribe(
+        "/simulator/module/ground_truth/pose", 10, &gt_ModulePoseCallback);
 
     //publishers
     ros::Publisher filtered_module_state_pub = 
@@ -169,6 +181,7 @@ int main(int argc, char** argv) {
 
     initLog(ekf_output_path,"time\tpose_x\tpose_y\tpose_z\tvel_x\tvel_y\twave_freq\tmast_length");
     initLog(reference_state_path,"time\tpose_x\tpose_y\tpose_z"); //\vel_x\vel_y\vel_z");
+    initLog(gt_reference_path,"time\tpose_x\tpose_y\tpose_z"); //\vel_x\vel_y\vel_z");
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -186,7 +199,7 @@ int main(int argc, char** argv) {
     ekf_meas_vector.type = mavros_msgs::DebugValue::TYPE_DEBUG_ARRAY;
 
     //initiate first state vector
-    ekf.setX(4, 1);
+    ekf.setX(4, 0.55);
     ekf.setX(5,2.5);
 
     //testing one step for debugging:
@@ -269,11 +282,13 @@ int main(int argc, char** argv) {
         ekf_output_data[6] = X[5];
         saveLog(ekf_output_path,ekf_output_data,7,4);
 
+        #if DEBUG
         std::cout << std::fixed << std::setprecision(4) << "X =\t";
         for(int i = 0 ; i<7 ; i++){
             std::cout << ekf_output_data[i] << "\t";
         }
         std::cout << std::endl;
+        #endif
 
         saveLog(reference_state_path,z,3,4);
 

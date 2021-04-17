@@ -19,7 +19,7 @@
 #include <stdexcept>
 
 #ifndef DEBUG
-#define DEBUG true
+#define DEBUG false
 #endif
 
 double getDeterminant(const std::vector<std::vector<double>> vect) {
@@ -487,12 +487,9 @@ int ekf_step(void * v, double * z)
             matrix[i][j]=ekf.tmp3[i*m+j];
         }
     }
-    printMatrix_vector(matrix);
     inverse_matrix = getInverse(matrix);
 
     printMatrix(ekf.tmp4,m,m,(char*)"S-1: ");
-    std::cout << "inv matrix: "<<std::endl;
-    printMatrix_vector(inverse_matrix);
     for(int i = 0;i<m;i++){
         for (int j = 0; j<m ; j++){
             ekf.tmp4[i*m+j] = inverse_matrix[i][j];
