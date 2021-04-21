@@ -158,7 +158,7 @@ void printMatrix_vector(const std::vector<std::vector<double>> vect) {
  * @param n number of lines
  * @param m number of row
  */
-void printMatrix(double* A,int n, int m, char* text){
+void printMatrix(double* A,int n, int m, std::string text){
     #if DEBUG
     using namespace std;
     cout << text << endl;
