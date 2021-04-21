@@ -24,9 +24,9 @@
 
 geometry_msgs::PoseStamped module_pose;
 
-const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../../../ekf_output.txt";
-const std::string reference_state_path = std::string(get_current_dir_name()) + "/../../../reference_state.txt";
-const std::string gt_reference_path = std::string(get_current_dir_name()) + "/../../../gt_reference.txt";
+const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../ekf_output.txt";
+const std::string reference_state_path = std::string(get_current_dir_name()) + "/../ekf_reference_state.txt";
+const std::string gt_reference_path = std::string(get_current_dir_name()) + "/../ekf_gt_reference.txt";
 
 //todo: it may be an issue calling this file the same name as in Fluid
 
@@ -179,9 +179,9 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
-    initLog(ekf_output_path,"time\tpose_x\tpose_y\tpose_z\tvel_x\tvel_y\twave_freq\tmast_length");
-    initLog(reference_state_path,"time\tpose_x\tpose_y\tpose_z"); //\vel_x\vel_y\vel_z");
-    initLog(gt_reference_path,"time\tpose_x\tpose_y\tpose_z"); //\vel_x\vel_y\vel_z");
+    initLog(ekf_output_path,"time\tpose.x\tpose.y\tpose.z\tvel_x\tvel_y\twave_freq\tmast_length");
+    initLog(reference_state_path,"time\tpose.x\tpose.y\tpose.z"); //\vel_x\vel_y\vel_z");
+    initLog(gt_reference_path,"time\tpose.x\tpose.y\tpose.z"); //\vel_x\vel_y\vel_z");
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -263,8 +263,8 @@ int main(int argc, char** argv) {
 
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
-        module_state.position.x = L_mast * sin(X[0]);
-        module_state.position.y = L_mast * sin(X[1]);
+        module_state.position.x = L_mast * sin(X[0])+0.2;
+        module_state.position.y = L_mast * sin(X[1])-10;
         module_state.position.z = L_mast * cos(X[0]) * cos(X[1]);
         module_state.velocity.x = L_mast * X[2];
         module_state.velocity.y = L_mast * X[3];

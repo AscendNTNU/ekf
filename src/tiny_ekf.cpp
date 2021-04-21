@@ -18,6 +18,8 @@
 #include <iomanip>
 #include <stdexcept>
 
+#include <ros/ros.h> //just for ROS_INFO_STREAM, can be deleted
+
 #ifndef DEBUG
 #define DEBUG false
 #endif
@@ -138,12 +140,15 @@ std::vector<std::vector<double>> getInverse(const std::vector<std::vector<double
     return solution;
 }
 void printMatrix_vector(const std::vector<std::vector<double>> vect) {
+    #if DEBUG
+    std::cout << std::fixed << std::setprecision(6);
     for(std::size_t i = 0; i < vect.size(); i++) {
         for(std::size_t j = 0; j < vect[0].size(); j++) {
-            std::cout << std::setw(8) << vect[i][j] << " ";
+            std::cout << vect[i][j] << "\t";
         }
         std::cout << "\n";
     }
+    #endif
 }
 
 /**
@@ -157,7 +162,7 @@ void printMatrix(double* A,int n, int m, char* text){
     #if DEBUG
     using namespace std;
     cout << text << endl;
-    cout << fixed << std::setprecision(3);
+    cout << fixed << std::setprecision(6);
     for (int i = 0; i<n ; i++){
         for (int j = 0; j<m; j++){
             cout << A[i*m+j] << "\t";
@@ -459,14 +464,14 @@ int ekf_step(void * v, double * z)
     ekf_t ekf;
     unpack(v, &ekf, n, m); 
  
-    printMatrix(ekf.F,n,n,(char*)"F: ");
+    //printMatrix(ekf.F,n,n,(char*)"F: ");
     /* P_k = F_{k-1} P_{k-1} F^T_{k-1} + Q_{k-1} */
     mulmat(ekf.F, ekf.P, ekf.tmp0, n, n, n);
     transpose(ekf.F, ekf.Ft, n, n);
     mulmat(ekf.tmp0, ekf.Ft, ekf.Pp, n, n, n);
     accum(ekf.Pp, ekf.Q, n, n);
 
-    printMatrix(ekf.Pp,n,n,(char*)"Pp: ");
+    //printMatrix(ekf.Pp,n,n,(char*)"Pp: ");
 
     /* G_k = P_k H^T_k (H_k P_k H^T_k + R)^{-1} */
     transpose(ekf.H, ekf.Ht, m, n);
@@ -475,33 +480,30 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    printMatrix(ekf.tmp3,m,m,(char*)"S: ");
+    //printMatrix(ekf.tmp3,m,m,(char*)"S: ");
 
-   
-
-
-    std::vector<std::vector<double>> matrix(m, std::vector<double> (m));
-    std::vector<std::vector<double>> inverse_matrix(m, std::vector<double> (m));
-    for(int i = 0;i<m;i++){
-        for (int j = 0; j<m ; j++){
-            matrix[i][j]=ekf.tmp3[i*m+j];
+    if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)){
+        //the light version did not work, so we use a bit more heavy one.
+        std::vector<std::vector<double>> matrix(m, std::vector<double> (m));
+        for(int i = 0;i<m;i++){
+            for (int j = 0; j<m ; j++){
+                matrix[i][j]=ekf.tmp3[i*m+j];
+            }
         }
-    }
-    inverse_matrix = getInverse(matrix);
-
-    printMatrix(ekf.tmp4,m,m,(char*)"S-1: ");
-    for(int i = 0;i<m;i++){
-        for (int j = 0; j<m ; j++){
-            ekf.tmp4[i*m+j] = inverse_matrix[i][j];
+        matrix = getInverse(matrix);
+        for(int i = 0;i<m;i++){
+            for (int j = 0; j<m ; j++){
+                ekf.tmp4[i*m+j] = matrix[i][j];
+            }
         }
-    }
     
+    } 
 
     //printMatrix(ekf.tmp4,n,n,(char*)"from normal inverse: S-1: ");
     
     
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
-    printMatrix(ekf.G,n,m, (char*)"K gain matrix: ");
+    //printMatrix(ekf.G,n,m, (char*)"K gain matrix: ");
 
     /* \hat{x}_k = \hat{x_k} + G_k(z_k - h(\hat{x}_k)) */
     sub(z, ekf.hx, ekf.tmp5, m); 
@@ -510,14 +512,14 @@ int ekf_step(void * v, double * z)
 //    printMatrix(ekf.tmp5,m,1, (char*)"z - hx: ");
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
-    printMatrix(ekf.x,1,n,(char*)"X = ");
+    //printMatrix(ekf.x,1,n,(char*)"X = ");
     
     /* P_k = (I - G_k H_k) P_k */
     mulmat(ekf.G, ekf.H, ekf.tmp0, n, m, n);
     negate(ekf.tmp0, n, n);
     mat_addeye(ekf.tmp0, n);
     mulmat(ekf.tmp0, ekf.Pp, ekf.P, n, n, n);
-    printMatrix(ekf.P,n,n,(char*)"P = ");
+    //printMatrix(ekf.P,n,n,(char*)"P = ");
     /* success */
     return 0;
 }
