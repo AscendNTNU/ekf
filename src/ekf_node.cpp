@@ -24,58 +24,6 @@
 
 geometry_msgs::PoseStamped module_pose;
 
-const std::string ekf_output_path = std::string(get_current_dir_name()) + "/../ekf_output.txt";
-const std::string reference_state_path = std::string(get_current_dir_name()) + "/../ekf_reference_state.txt";
-const std::string gt_reference_path = std::string(get_current_dir_name()) + "/../ekf_gt_reference.txt";
-
-//todo: it may be an issue calling this file the same name as in Fluid
-
-//todo: should the title be an arrawy of char* ?
-/**
- * @brief initialize the data file with a title. 
- * Should include the time as a first member
- * 
- * @param file_name name of the file to init
- * @param title array of names separated by tabulations
- */
-void initLog(const std::string file_name, std::string title)
-{ //create a header for the logfile.
-    std::ofstream save_file_f;
-     save_file_f.open(file_name);
-    if(save_file_f.is_open())
-    {
-        save_file_f << title << std::endl;
-        save_file_f.close();
-    }
-    else
-    {
-        ROS_INFO_STREAM(ros::this_node::getName().c_str() << "could not open " << file_name);
-    }
-}
-
-/**
- * @brief save the given data into the file
- * 
- * @param file_name: the name of the file
- * @param data An array of the data to save
- * @param n the number of elements
- */
-void saveLog(const std::string file_name, double* data, int n, int precision = 3)
-{
-    std::ofstream save_file_f;
-    save_file_f.open (file_name, std::ios::app);
-    if(save_file_f.is_open())
-    {
-        save_file_f << std::fixed << std::setprecision(precision) //only 3 decimals
-                    << ros::Time::now();
-        for (int i =0; i<n;i++){
-            save_file_f << "\t" << data[i];
-        }
-        save_file_f << std::endl;
-        save_file_f.close();
-    }
-}
-
 class Fuser : public TinyEKF {
 
     public:
@@ -156,7 +104,6 @@ void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
     temp[0] = module_pose_ptr->pose.position.x-0.2;
     temp[1] = module_pose_ptr->pose.position.y+10;
     temp[2] = module_pose_ptr->pose.position.z;
-    saveLog(gt_reference_path,temp,3,4);
 }
 
 
@@ -179,9 +126,6 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
-    initLog(ekf_output_path,"time\tpose.x\tpose.y\tpose.z\tvel_x\tvel_y\twave_freq\tmast_length");
-    initLog(reference_state_path,"time\tpose.x\tpose.y\tpose.z"); //\vel_x\vel_y\vel_z");
-    initLog(gt_reference_path,"time\tpose.x\tpose.y\tpose.z"); //\vel_x\vel_y\vel_z");
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -201,23 +145,6 @@ int main(int argc, char** argv) {
     //initiate first state vector
     ekf.setX(4, 0.55);
     ekf.setX(5,2.5);
-
-    //testing one step for debugging:
-//    double z[Mobs]; // x, y, z, pitch
-//    z[0] = 0.5;
-//    z[1] = 0.5;
-//    z[2] = 1.9;
-//    z[3] = 0.25;
-//    for(int i=0;i<200;i++){
-//        ekf.step(z);
-//        std::cout << "X = ";
-//        for(int i =0; i< Nsta;i++){
-//            std::cout << ekf.getX(i) << "\t"; // p, r, p', r', omega, L_mast
-//        }
-//        std::cout << std::endl;
-//    }
-    //result: X = 0.22613     0.189871        4.64347e-310    4.36543e-310    1       2.36156
-
 
     module_pose.header.seq = 0;
     //wait for first measurement
@@ -280,7 +207,6 @@ int main(int argc, char** argv) {
         ekf_output_data[4] = module_state.velocity.y;
         ekf_output_data[5] = X[4];
         ekf_output_data[6] = X[5];
-        saveLog(ekf_output_path,ekf_output_data,7,4);
 
         #if DEBUG
         std::cout << std::fixed << std::setprecision(4) << "X =\t";
@@ -289,8 +215,6 @@ int main(int argc, char** argv) {
         }
         std::cout << std::endl;
         #endif
-
-        saveLog(reference_state_path,z,3,4);
 
         ros::spinOnce();
         rate.sleep();
