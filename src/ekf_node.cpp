@@ -8,6 +8,7 @@
 
 
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/DebugValue.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -22,7 +23,7 @@
 
 #define SAMPLE_TIME 25.0
 
-geometry_msgs::PoseStamped module_pose;
+geometry_msgs::PoseWithCovarianceStamped module_pose;
 
 class Fuser : public TinyEKF {
 
@@ -95,15 +96,15 @@ class Fuser : public TinyEKF {
         }
 };
 
-void perceptionPoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
+void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
 }
 
-void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
+void gt_ModulePoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     double temp[3];
-    temp[0] = module_pose_ptr->pose.position.x-0.2;
-    temp[1] = module_pose_ptr->pose.position.y+10;
-    temp[2] = module_pose_ptr->pose.position.z;
+    temp[0] = module_pose_ptr->pose.pose.position.x-0.2;
+    temp[1] = module_pose_ptr->pose.pose.position.y+10;
+    temp[2] = module_pose_ptr->pose.pose.position.z;
 }
 
 
@@ -158,12 +159,12 @@ int main(int argc, char** argv) {
     
     while(ros::ok()){
         double z[Mobs]; // x, y, z, pitch
-        z[0] = module_pose.pose.position.x-0.2; //mast offset
-        z[1] = module_pose.pose.position.y+10.0;//mast offset
-        z[2] = module_pose.pose.position.z;
+        z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
+        z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
+        z[2] = module_pose.pose.pose.position.z;
         
         //extracting the pitch from the quaternion
-        geometry_msgs::Quaternion quaternion = module_pose.pose.orientation;
+        geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
         tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
         double roll, pitch, yaw;
         tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
