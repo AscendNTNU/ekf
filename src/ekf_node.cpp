@@ -115,9 +115,22 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Starting up.");
     ros::NodeHandle node_handle;
 
+    bool perception_node;
+    const std::string prefix = ros::this_node::getName() + "/";
+    if (!node_handle.getParam(prefix + "perception_node", perception_node)) {
+        ROS_FATAL_STREAM(ros::this_node::getName() << ": Could not find parameter: " << prefix + "perception_node");
+    }
+
     //subscribers
-    ros::Subscriber module_pose_sub = node_handle.subscribe(
-        "/simulator/module/noisy/pose", 10, &perceptionPoseCallback);
+    ros::Subscriber module_pose_sub;
+    if(perception_node){
+        module_pose_sub = node_handle.subscribe(
+            "/interaction_point_pose", 10, &perceptionPoseCallback);
+    }
+    else{
+        module_pose_sub = node_handle.subscribe(
+            "/simulator/module/noisy/pose", 10, &perceptionPoseCallback);
+    }
     ros::Subscriber gt_module_pose_sub = node_handle.subscribe(
         "/simulator/module/ground_truth/pose", 10, &gt_ModulePoseCallback);
 
