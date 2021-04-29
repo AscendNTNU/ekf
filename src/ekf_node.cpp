@@ -115,15 +115,15 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Starting up.");
     ros::NodeHandle node_handle;
 
-    bool perception_node;
+    bool use_perception;
     const std::string prefix = ros::this_node::getName() + "/";
-    if (!node_handle.getParam(prefix + "perception_node", perception_node)) {
-        ROS_FATAL_STREAM(ros::this_node::getName() << ": Could not find parameter: " << prefix + "perception_node");
+    if (!node_handle.getParam(prefix + "use_perception", use_perception)) {
+        ROS_FATAL_STREAM(ros::this_node::getName() << ": Could not find parameter: " << prefix + "use_perception");
     }
 
     //subscribers
     ros::Subscriber module_pose_sub;
-    if(perception_node){
+    if(use_perception){
         module_pose_sub = node_handle.subscribe(
             "/interaction_point_pose", 10, &perceptionPoseCallback);
     }
