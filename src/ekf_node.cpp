@@ -13,6 +13,8 @@
 #include <mavros_msgs/DebugValue.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <ros/ros.h>
 
@@ -140,6 +142,11 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
+    geometry_msgs::TransformStamped transformStamped;
+
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -171,10 +178,19 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
     
     while(ros::ok()){
+        try{
+            transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
+        }
+        catch (tf2::TransformException &ex) {
+            ROS_WARN("%s",ex.what());
+            ros::Duration(1.0).sleep();
+            continue;
+        }
+
         double z[Mobs]; // x, y, z, pitch
-        z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
-        z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
-        z[2] = module_pose.pose.pose.position.z;
+        z[0] = transformStamped.transform.translation.x + module_pose.pose.pose.position.x-0.2; //mast offset
+        z[1] = transformStamped.transform.translation.y - module_pose.pose.pose.position.y+10.0;//mast offset
+        z[2] = transformStamped.transform.translation.z + module_pose.pose.pose.position.z;
         
         //extracting the pitch from the quaternion
         geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
