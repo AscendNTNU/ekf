@@ -15,6 +15,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <ros/ros.h>
 
@@ -142,6 +143,8 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
+//    ros::Publisher tf_pose_pub = node_handle.advertise<geometry_msgs::PoseStamped>("/ekf/tf_pose",10);
+
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
 
@@ -178,20 +181,28 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
     
     while(ros::ok()){
-        try{
-            transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
+        if (use_perception){
+            try{
+                transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
+            }
+            catch (tf2::TransformException &ex) {
+                ROS_WARN("%s",ex.what());
+                ros::Duration(1.0).sleep();
+                continue;
+            }
+            tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
         }
-        catch (tf2::TransformException &ex) {
-            ROS_WARN("%s",ex.what());
-            ros::Duration(1.0).sleep();
-            continue;
-        }
-
         double z[Mobs]; // x, y, z, pitch
-        z[0] = transformStamped.transform.translation.x + module_pose.pose.pose.position.x-0.2; //mast offset
-        z[1] = transformStamped.transform.translation.y - module_pose.pose.pose.position.y+10.0;//mast offset
-        z[2] = transformStamped.transform.translation.z + module_pose.pose.pose.position.z;
+        z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
+        z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
+        z[2] = module_pose.pose.pose.position.z;
         
+//        geometry_msgs::PoseStamped temp;
+//        temp.header.stamp = ros::Time::now();
+//        temp.header.frame_id = "map";
+//        temp.pose = tf_pose;
+//        tf_pose_pub.publish(temp);
+
         //extracting the pitch from the quaternion
         geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
         tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
