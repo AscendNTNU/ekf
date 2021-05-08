@@ -40,10 +40,10 @@ class Fuser : public TinyEKF {
             this->setQ(5, 5, 0.001);
 
             // Same for measurement noise
-            this->setR(0, 0, .2667);
-            this->setR(1, 1, .5667);
-            this->setR(2, 2, .5667);
-            this->setR(3, 3, .02667);
+            this->setR(0, 0, 2.667);
+            this->setR(1, 1, 5.667);
+            this->setR(2, 2, 5.667);
+            this->setR(3, 3, 0.2667);
 
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
