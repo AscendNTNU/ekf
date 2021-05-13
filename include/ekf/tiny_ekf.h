@@ -55,6 +55,8 @@ void ekf_init(void * ekf, int n, int m);
   * @param z array of measurement (observation) values
   * @return 0 on success, 1 on failure caused by non-positive-definite matrix.
   */
-int ekf_step(void * ekf, double * z);
+int ekf_update(void * ekf, double * z);
+
+void ekf_prediction(void * ekf);
 
 void printMatrix(double* A,int n, int m, char* text);

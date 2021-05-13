@@ -24,6 +24,7 @@
 #define SAMPLE_TIME 25.0
 
 geometry_msgs::PoseWithCovarianceStamped module_pose;
+bool measurement_received;
 
 class Fuser : public TinyEKF {
 
@@ -60,7 +61,7 @@ class Fuser : public TinyEKF {
             double w = this->x[4]; //omega = wave frequency
             double L = this->x[5]; //length of the mast
             
-            // Process model is f(x) = x
+            // Process model is f(x) = x_{k+1}
             fx[0] = p + pdot/SAMPLE_TIME;
             fx[1] = r + rdot/SAMPLE_TIME;
             fx[2] = pdot - pow(w,2) * p/SAMPLE_TIME;
@@ -98,6 +99,7 @@ class Fuser : public TinyEKF {
 
 void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
+    measurement_received = true;
 }
 
 void gt_ModulePoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
@@ -159,6 +161,7 @@ int main(int argc, char** argv) {
     //initiate first state vector
     ekf.setX(4, 0.55);
     ekf.setX(5,2.5);
+    measurement_received = false;
 
     module_pose.header.seq = 0;
     //wait for first measurement
@@ -171,23 +174,33 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
     
     while(ros::ok()){
-        double z[Mobs]; // x, y, z, pitch
-        z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
-        z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
-        z[2] = module_pose.pose.pose.position.z;
-        
-        //extracting the pitch from the quaternion
-        geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
-        tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
-        double roll, pitch, yaw;
-        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-        // If the quaternion is invalid, e.g. (0, 0, 0, 0), getRPY will return nan, so in that case we just set
-        // it to zero.
-        z[3] = std::isnan(pitch) ? 0.0 : pitch;
+        ekf.prediction();
+        if(measurement_received){
+            double z[Mobs]; // x, y, z, pitch
+            z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
+            z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
+            z[2] = module_pose.pose.pose.position.z;
+            
+            //extracting the pitch from the quaternion
+            geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
+            tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+            // If the quaternion is invalid, e.g. (0, 0, 0, 0), getRPY will return nan, so in that case we just set
+            // it to zero.
+            z[3] = std::isnan(pitch) ? 0.0 : pitch;
 
-        if(!ekf.step(z))
-            std::cout << "error with ekf step" <<std::endl;
-            //todo: restart the kf whith current state ASAP
+            if(!ekf.update(z))
+                std::cout << "error with ekf step" <<std::endl;
+                //todo: restart the kf whith current state ASAP
+
+            ekf_meas_vector.data.assign(z,z+Mobs);
+            ekf_meas_vector.header.seq++;
+            ekf_meas_vector.header.stamp = ros::Time::now();
+            ekf_meas_pub.publish(ekf_meas_vector);
+            
+            measurement_received = false;
+        }
         
         for(int i =0; i< Nsta;i++)
             X[i] = ekf.getX(i); // p, r, p', r', omega, L_mast
@@ -196,11 +209,6 @@ int main(int argc, char** argv) {
         ekf_state_vector.data.assign(X,X+Nsta);
         ekf_state_vector.header.seq++;
         ekf_state_pub.publish(ekf_state_vector);        
-
-        ekf_meas_vector.data.assign(z,z+Mobs);
-        ekf_meas_vector.header.seq++;
-        ekf_meas_vector.header.stamp = ros::Time::now();
-        ekf_meas_pub.publish(ekf_meas_vector);
 
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();

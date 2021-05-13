@@ -452,7 +452,7 @@ void ekf_init(void * v, int n, int m)
     zeros(ekf.H, m, n);
 }
 
-int ekf_step(void * v, double * z)
+int ekf_update(void * v, double * z)
 {        
     /* unpack incoming structure */
 
@@ -464,23 +464,12 @@ int ekf_step(void * v, double * z)
     ekf_t ekf;
     unpack(v, &ekf, n, m); 
  
-    //printMatrix(ekf.F,n,n,(char*)"F: ");
-    /* P_k = F_{k-1} P_{k-1} F^T_{k-1} + Q_{k-1} */
-    mulmat(ekf.F, ekf.P, ekf.tmp0, n, n, n);
-    transpose(ekf.F, ekf.Ft, n, n);
-    mulmat(ekf.tmp0, ekf.Ft, ekf.Pp, n, n, n);
-    accum(ekf.Pp, ekf.Q, n, n);
-
-    //printMatrix(ekf.Pp,n,n,(char*)"Pp: ");
-
     /* G_k = P_k H^T_k (H_k P_k H^T_k + R)^{-1} */
     transpose(ekf.H, ekf.Ht, m, n);
     mulmat(ekf.Pp, ekf.Ht, ekf.tmp1, n, n, m);
-    //printMatrix(ekf.tmp1,n,n,(char*)"Pp * H': ");
     mulmat(ekf.H, ekf.Pp, ekf.tmp2, m, n, n);
     mulmat(ekf.tmp2, ekf.Ht, ekf.tmp3, m, n, m);
     accum(ekf.tmp3, ekf.R, m, m);
-    //printMatrix(ekf.tmp3,m,m,(char*)"S: ");
 
     if (cholsl(ekf.tmp3, ekf.tmp4, ekf.tmp5, m)){
         //the light version did not work, so we use a bit more heavy one.
@@ -496,20 +485,12 @@ int ekf_step(void * v, double * z)
                 ekf.tmp4[i*m+j] = matrix[i][j];
             }
         }
-    
-    } 
-
-    //printMatrix(ekf.tmp4,n,n,(char*)"from normal inverse: S-1: ");
-    
-    
+    }     
     mulmat(ekf.tmp1, ekf.tmp4, ekf.G, n, m, m);
     //printMatrix(ekf.G,n,m, (char*)"K gain matrix: ");
 
     /* \hat{x}_k = \hat{x_k} + G_k(z_k - h(\hat{x}_k)) */
     sub(z, ekf.hx, ekf.tmp5, m); 
-//    printMatrix(z,m,1, (char*)"z: ");
-//    printMatrix(ekf.hx,m,1, (char*)"hx: ");
-//    printMatrix(ekf.tmp5,m,1, (char*)"z - hx: ");
     mulvec(ekf.G, ekf.tmp5, ekf.tmp2, n, m);
     add(ekf.fx, ekf.tmp2, ekf.x, n);
     //printMatrix(ekf.x,1,n,(char*)"X = ");
@@ -521,5 +502,29 @@ int ekf_step(void * v, double * z)
     mulmat(ekf.tmp0, ekf.Pp, ekf.P, n, n, n);
     //printMatrix(ekf.P,n,n,(char*)"P = ");
     /* success */
+
     return 0;
+}
+
+void ekf_prediction(void *v)
+{
+    /* unpack incoming structure */
+
+    int * ptr = (int *)v;
+    int n = *ptr;
+    ptr++;
+    int m = *ptr;
+
+    ekf_t ekf;
+    unpack(v, &ekf, n, m); 
+
+    /* P_k = F_{k-1} P_{k-1} F^T_{k-1} + Q_{k-1} */
+    mulmat(ekf.F, ekf.P, ekf.tmp0, n, n, n);
+    transpose(ekf.F, ekf.Ft, n, n);
+    mulmat(ekf.tmp0, ekf.Ft, ekf.Pp, n, n, n);
+    accum(ekf.Pp, ekf.Q, n, n);
+
+    /* X_k = F(x_{k-1}) */
+    ekf.x = ekf.fx;
+        
 }

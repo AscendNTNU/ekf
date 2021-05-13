@@ -9,9 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "tiny_ekf_struct.h"
-
-void ekf_init(void *, int, int);
-int ekf_step(void *, double *);
+#include "tiny_ekf.h"
 
 /**
  * A header-only class for the Extended Kalman Filter.  Your implementing class should #define the constant N and 
@@ -126,10 +124,15 @@ class TinyEKF {
          * @param z observation vector, length <i>m</i>
          * @return true on success, false on failure caused by non-positive-definite matrix.
          */
-        bool step(double * z) 
+        bool update(double * z) 
         { 
+            return ekf_update(&this->ekf, z) ? false : true;
+        }
+
+        void prediction()
+        {
             this->model(this->ekf.fx, this->ekf.F, this->ekf.hx, this->ekf.H); 
 
-            return ekf_step(&this->ekf, z) ? false : true;
+            ekf_prediction(&this->ekf);
         }
 };
