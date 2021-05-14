@@ -41,10 +41,10 @@ class Fuser : public TinyEKF {
             this->setQ(5, 5, 0.001);
 
             // Same for measurement noise
-            this->setR(0, 0, 2.667);
-            this->setR(1, 1, 5.667);
-            this->setR(2, 2, 5.667);
-            this->setR(3, 3, 0.2667);
+            this->setR(0, 0, 0.2667);
+            this->setR(1, 1, 0.5667);
+            this->setR(2, 2, 0.5667);
+            this->setR(3, 3, 0.02667);
 
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
@@ -104,7 +104,7 @@ void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr mod
 
 void gt_ModulePoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     double temp[3];
-    temp[0] = module_pose_ptr->pose.pose.position.x-0.2;
+    temp[0] = module_pose_ptr->pose.pose.position.x-0.0957;
     temp[1] = module_pose_ptr->pose.pose.position.y+10;
     temp[2] = module_pose_ptr->pose.pose.position.z;
 }
@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
         ekf.prediction();
         if(measurement_received){
             double z[Mobs]; // x, y, z, pitch
-            z[0] = module_pose.pose.pose.position.x-0.2; //mast offset
+            z[0] = module_pose.pose.pose.position.x-0.0957; //mast offset
             z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
             z[2] = module_pose.pose.pose.position.z;
             
@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
 
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
-        module_state.position.x = L_mast * sin(X[0])+0.2;
+        module_state.position.x = L_mast * sin(X[0])+0.0957;
         module_state.position.y = L_mast * sin(X[1])-10;
         module_state.position.z = L_mast * cos(X[0]) * cos(X[1]);
         module_state.velocity.x = L_mast * X[2];
