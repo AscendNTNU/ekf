@@ -12,6 +12,7 @@
 #include <mavros_msgs/DebugValue.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include "data_file.h"
 
 #include <ros/ros.h>
 
@@ -21,8 +22,8 @@
 
 
 #define SAMPLE_TIME 25.0
-
-geometry_msgs::PoseStamped module_pose;
+mavros_msgs::PositionTarget gt_ref, gt_ref_prev;
+geometry_msgs::PoseStamped module_pose, header;
 
 class Fuser : public TinyEKF {
 
@@ -42,11 +43,13 @@ class Fuser : public TinyEKF {
             this->setR(0, 0, 2.667);
             this->setR(1, 1, 5.667);
             this->setR(2, 2, 5.667);
-            this->setR(3, 3, 0.2667);
+            this->setR(3, 3, 1.2667);
 
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
         }
+        double pddot;
+        double rddot;
 
     protected:
 
@@ -58,12 +61,14 @@ class Fuser : public TinyEKF {
             double rdot = this->x[3];
             double w = this->x[4]; //omega = wave frequency
             double L = this->x[5]; //length of the mast
+            pddot = - pow(w,2) * p/SAMPLE_TIME;
+            rddot = - pow(w,2) * r/SAMPLE_TIME;
             
             // Process model is f(x) = x
             fx[0] = p + pdot/SAMPLE_TIME;
             fx[1] = r + rdot/SAMPLE_TIME;
-            fx[2] = pdot - pow(w,2) * p/SAMPLE_TIME;
-            fx[3] = rdot - pow(w,2) * r/SAMPLE_TIME;
+            fx[2] = pdot + pddot;
+            fx[3] = rdot + rddot;
             fx[4] = w;
             fx[5] = L;
 
@@ -100,10 +105,38 @@ void perceptionPoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
 }
 
 void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
-    double temp[3];
-    temp[0] = module_pose_ptr->pose.position.x-0.2;
-    temp[1] = module_pose_ptr->pose.position.y+10;
-    temp[2] = module_pose_ptr->pose.position.z;
+    if((module_pose_ptr->header.stamp - header.header.stamp).toSec() >0.01){
+        header.header = module_pose_ptr->header;
+        gt_ref_prev.position.x = gt_ref.position.x;
+        gt_ref_prev.position.y = gt_ref.position.y;
+        gt_ref_prev.position.z = gt_ref.position.z;
+        
+        gt_ref_prev.velocity.x = gt_ref.velocity.x;
+        gt_ref_prev.velocity.y = gt_ref.velocity.y;
+        gt_ref_prev.velocity.z = gt_ref.velocity.z;
+
+        gt_ref_prev.acceleration_or_force.x = gt_ref.acceleration_or_force.x;
+        gt_ref_prev.acceleration_or_force.y = gt_ref.acceleration_or_force.y;
+        gt_ref_prev.acceleration_or_force.z = gt_ref.acceleration_or_force.z;
+        
+
+        
+        gt_ref.position.x = module_pose_ptr->pose.position.x;
+        gt_ref.position.y = module_pose_ptr->pose.position.y;
+        gt_ref.position.z = module_pose_ptr->pose.position.z;
+        
+//        printf("pos_x %f\tprev_x %f\t",gt_ref.position.x, gt_ref_prev.position.x);
+
+        gt_ref.velocity.x = (gt_ref.position.x - gt_ref_prev.position.x)*20.0;
+        gt_ref.velocity.y = (gt_ref.position.y - gt_ref_prev.position.y)*20.0;
+        gt_ref.velocity.z = (gt_ref.position.z - gt_ref_prev.position.z)*20.0;
+
+        //printf("vel_x %f\tprev_x %f\n",gt_ref.velocity.x, gt_ref_prev.velocity.x);
+
+        gt_ref.acceleration_or_force.x = (gt_ref.velocity.x - gt_ref_prev.velocity.x)*20.0;
+        gt_ref.acceleration_or_force.y = (gt_ref.velocity.y - gt_ref_prev.velocity.y)*20.0;
+        gt_ref.acceleration_or_force.z = (gt_ref.velocity.z - gt_ref_prev.velocity.z)*20.0;
+    }
 }
 
 
@@ -117,8 +150,8 @@ int main(int argc, char** argv) {
     //subscribers
     ros::Subscriber module_pose_sub = node_handle.subscribe(
         "/simulator/module/noisy/pose", 10, &perceptionPoseCallback);
-    ros::Subscriber gt_module_pose_sub = node_handle.subscribe(
-        "/simulator/module/ground_truth/pose", 10, &gt_ModulePoseCallback);
+    //ros::Subscriber gt_module_pose_sub = node_handle.subscribe(
+    //    "/simulator/module/ground_truth/pose", 10, &gt_ModulePoseCallback);
 
     //publishers
     ros::Publisher filtered_module_state_pub = 
@@ -193,11 +226,14 @@ int main(int argc, char** argv) {
         module_state.position.x = L_mast * sin(X[0])+0.2;
         module_state.position.y = L_mast * sin(X[1])-10;
         module_state.position.z = L_mast * cos(X[0]) * cos(X[1]);
-        module_state.velocity.x = L_mast * X[2];
-        module_state.velocity.y = L_mast * X[3];
-        module_state.velocity.z = 0; //Not used, so not worth doing the calculations
+        module_state.velocity.x = L_mast * X[2]*cos(X[0]);
+        module_state.velocity.y = L_mast * X[3]*cos(X[1]);
+        module_state.velocity.z = 0; //Not used, so not worth doing the calculations //todo: can be used
+        module_state.acceleration_or_force.x = L_mast *(X[2]*X[2]*sin(X[0]) + ekf.pddot*cos(X[0]));
+        module_state.acceleration_or_force.y = L_mast *(X[3]*X[3]*sin(X[1]) + ekf.rddot*cos(X[1]));
+        module_state.acceleration_or_force.z = 0; //Not used, so not worth doing the calculations
         filtered_module_state_pub.publish(module_state);
-
+        
         //save some data:
         double ekf_output_data[7];
         ekf_output_data[0] = module_state.position.x;
