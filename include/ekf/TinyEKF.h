@@ -135,4 +135,9 @@ class TinyEKF {
 
             ekf_prediction(&this->ekf);
         }
+
+        void future_setpoint(double time, double* x_p)
+        {
+            future_prediction(&this->ekf,time, x_p);
+        }
 };

@@ -60,3 +60,5 @@ int ekf_update(void * ekf, double * z);
 void ekf_prediction(void * ekf);
 
 void printMatrix(double* A,int n, int m, char* text);
+
+void future_prediction(void* ekf, double time, double* x_p);

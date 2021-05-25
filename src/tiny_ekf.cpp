@@ -528,3 +528,33 @@ void ekf_prediction(void *v)
     ekf.x = ekf.fx;
         
 }
+
+void future_prediction(void *v, double time, double* x_p){
+    /* unpack incoming structure */
+
+    int * ptr = (int *)v;
+    int n = *ptr;
+    ptr++;
+    int m = *ptr;
+
+    ekf_t ekf;
+    unpack(v, &ekf, n, m); 
+    //we don't mind about the covariance matrix here
+    //todo: mind about the covariance matrix?
+
+    /* X_k = F(x_{k-1}) */
+    double fx_p[n];
+    double SAMPLE_TIME = 25;
+
+    memcpy(x_p, ekf.fx, sizeof(double)*n);
+    for (int i =0; (float)i/SAMPLE_TIME > time; i++){
+        fx_p[0] = x_p[0] + x_p[2]/SAMPLE_TIME;
+        fx_p[1] = x_p[1] + x_p[3]/SAMPLE_TIME;
+        fx_p[2] = x_p[2] - pow(x_p[4],2) * x_p[0]/SAMPLE_TIME;
+        fx_p[3] = x_p[3] - pow(x_p[4],2) * x_p[1]/SAMPLE_TIME;
+        fx_p[4] = x_p[4];
+        fx_p[5] = x_p[5];
+        memcpy(x_p, fx_p, sizeof(double)*n);
+
+    }
+}

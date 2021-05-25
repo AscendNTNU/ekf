@@ -41,10 +41,10 @@ class Fuser : public TinyEKF {
             this->setQ(5, 5, 0.001);
 
             // Same for measurement noise
-            this->setR(0, 0, 0.2667);
-            this->setR(1, 1, 0.5667);
-            this->setR(2, 2, 0.5667);
-            this->setR(3, 3, 0.02667);
+            this->setR(0, 0, 2.667);
+            this->setR(1, 1, 5.667);
+            this->setR(2, 2, 5.667);
+            this->setR(3, 3, 0.6667);
 
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
@@ -139,6 +139,8 @@ int main(int argc, char** argv) {
     //publishers
     ros::Publisher filtered_module_state_pub = 
             node_handle.advertise<mavros_msgs::PositionTarget>("/ekf/module/state",10);
+    //ros::Publisher future_module_state_pub = 
+    //        node_handle.advertise<mavros_msgs::PositionTarget>("/ekf/module/future_state",10);
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
@@ -146,6 +148,8 @@ int main(int argc, char** argv) {
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
     module_state.header.seq = 0;
+//    mavros_msgs::PositionTarget future_module_state;
+//    future_module_state.header.seq = 0;
 
     mavros_msgs::DebugValue ekf_state_vector;
     ekf_state_vector.header.seq = 0;
@@ -237,6 +241,20 @@ int main(int argc, char** argv) {
         }
         std::cout << std::endl;
         #endif
+
+/*
+        double* future_state = new double[Nsta];
+        ekf.future_setpoint(future_prediction_time, future_state);
+        future_module_state.header.seq++; //seq is read only
+        future_module_state.header.stamp = ros::Time::now();
+        future_module_state.position.x = L_mast * sin(future_state[0])+0.0957;
+        future_module_state.position.y = L_mast * sin(future_state[1])-10;
+        future_module_state.position.z = L_mast * cos(future_state[0]) * cos(future_state[1]);
+        future_module_state.velocity.x = L_mast * future_state[2];
+        future_module_state.velocity.y = L_mast * future_state[3];
+        future_module_state.velocity.z = 0; //Not used, so not worth doing the calculations
+        future_module_state_pub.publish(future_module_state);
+*/
 
         ros::spinOnce();
         rate.sleep();
