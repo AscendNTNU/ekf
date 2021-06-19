@@ -13,6 +13,9 @@
 #include <mavros_msgs/DebugValue.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <ros/ros.h>
 
@@ -178,6 +181,13 @@ int main(int argc, char** argv) {
     ros::Publisher ekf_state_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/state",10);
     ros::Publisher ekf_meas_pub = node_handle.advertise<mavros_msgs::DebugValue>("/ekf/measurement",10);
 
+//    ros::Publisher tf_pose_pub = node_handle.advertise<geometry_msgs::PoseStamped>("/ekf/tf_pose",10);
+
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
+    geometry_msgs::TransformStamped transformStamped;
+
     Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -214,9 +224,20 @@ int main(int argc, char** argv) {
     while(ros::ok()){
         ekf.prediction();
         if(measurement_received){
+            if (use_perception){
+                try{
+                    transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
+                }
+                catch (tf2::TransformException &ex) {
+                    ROS_WARN("%s",ex.what());
+                    ros::Duration(1.0).sleep();
+                    continue;
+                }
+                tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
+            }
             double z[Mobs]; // x, y, z, pitch
-            z[0] = module_pose.pose.pose.position.x-0.0957; //mast offset
-            z[1] = module_pose.pose.pose.position.y+10.0;//mast offset
+            z[0] = module_pose.pose.pose.position.x - 0.0957; //mast offset
+            z[1] = module_pose.pose.pose.position.y + 10.0;//mast offset
             z[2] = module_pose.pose.pose.position.z;
             
             //extracting the pitch from the quaternion
@@ -239,6 +260,25 @@ int main(int argc, char** argv) {
             
             measurement_received = false;
         }
+        
+//        geometry_msgs::PoseStamped temp;
+//        temp.header.stamp = ros::Time::now();
+//        temp.header.frame_id = "map";
+//        temp.pose = tf_pose;
+//        tf_pose_pub.publish(temp);
+
+        //extracting the pitch from the quaternion
+        geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
+        tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+        double roll, pitch, yaw;
+        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+        // If the quaternion is invalid, e.g. (0, 0, 0, 0), getRPY will return nan, so in that case we just set
+        // it to zero.
+        z[3] = std::isnan(pitch) ? 0.0 : pitch;
+
+        if(!ekf.step(z))
+            std::cout << "error with ekf step" <<std::endl;
+            //todo: restart the kf whith current state ASAP
         
         for(int i =0; i< Nsta;i++)
             X[i] = ekf.getX(i); // p, r, p', r', omega, L_mast
