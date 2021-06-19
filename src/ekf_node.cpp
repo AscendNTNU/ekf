@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
             z[3] = std::isnan(pitch) ? 0.0 : pitch;
 
             if(!ekf.update(z))
-                std::cout << "error with ekf step" <<std::endl;
+                std::cout << "error with ekf update" <<std::endl;
                 //todo: restart the kf whith current state ASAP
 
             ekf_meas_vector.data.assign(z,z+Mobs);
@@ -260,25 +260,6 @@ int main(int argc, char** argv) {
             
             measurement_received = false;
         }
-        
-//        geometry_msgs::PoseStamped temp;
-//        temp.header.stamp = ros::Time::now();
-//        temp.header.frame_id = "map";
-//        temp.pose = tf_pose;
-//        tf_pose_pub.publish(temp);
-
-        //extracting the pitch from the quaternion
-        geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
-        tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
-        double roll, pitch, yaw;
-        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-        // If the quaternion is invalid, e.g. (0, 0, 0, 0), getRPY will return nan, so in that case we just set
-        // it to zero.
-        z[3] = std::isnan(pitch) ? 0.0 : pitch;
-
-        if(!ekf.step(z))
-            std::cout << "error with ekf step" <<std::endl;
-            //todo: restart the kf whith current state ASAP
         
         for(int i =0; i< Nsta;i++)
             X[i] = ekf.getX(i); // p, r, p', r', omega, L_mast
@@ -318,21 +299,7 @@ int main(int argc, char** argv) {
         }
         std::cout << std::endl;
         #endif
-
-/*
-        double* future_state = new double[Nsta];
-        ekf.future_setpoint(future_prediction_time, future_state);
-        future_module_state.header.seq++; //seq is read only
-        future_module_state.header.stamp = ros::Time::now();
-        future_module_state.position.x = L_mast * sin(future_state[0])+0.0957;
-        future_module_state.position.y = L_mast * sin(future_state[1])-10;
-        future_module_state.position.z = L_mast * cos(future_state[0]) * cos(future_state[1]);
-        future_module_state.velocity.x = L_mast * future_state[2];
-        future_module_state.velocity.y = L_mast * future_state[3];
-        future_module_state.velocity.z = 0; //Not used, so not worth doing the calculations
-        future_module_state_pub.publish(future_module_state);
-*/
-
+        
         ros::spinOnce();
         rate.sleep();
     }
