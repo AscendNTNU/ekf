@@ -1,6 +1,6 @@
 
 // These must be defined before including TinyEKF.h
-#define Nsta 6     // Nb states
+#define Nsta 9     // Nb states : p, r, p', r', omega, L_mast, x0, y0, z0
 #define Mobs 3     // Nb measurements x,y and z
 #define DEBUG false// print the matrices elements
 #include "TinyEKF.h"
@@ -27,6 +27,7 @@
 #define SAMPLE_TIME 25.0
 
 geometry_msgs::PoseWithCovarianceStamped module_pose;
+bool start_ekf = false;
 bool measurement_received;
 mavros_msgs::PositionTarget gt_ref, gt_ref_prev;
 geometry_msgs::PoseStamped header;
@@ -44,6 +45,9 @@ class Fuser : public TinyEKF {
             this->setQ(3, 3, 0.00040);
             this->setQ(4, 4, 0.0001);
             this->setQ(5, 5, 0.0001);
+            this->setQ(6, 6, 0.0001);
+            this->setQ(7, 7, 0.0001);
+            this->setQ(8, 8, 0.0001);
 
             // Same for measurement noise
             this->setR(0, 0, 2.667);
@@ -66,6 +70,10 @@ class Fuser : public TinyEKF {
             double rdot = this->x[3];
             double w = this->x[4]; //omega = wave frequency
             double L = this->x[5]; //length of the mast
+            double x0 = this->x[6];
+            double y0 = this->x[7];
+            double z0 = this->x[8];
+
             pddot = - pow(w,2) * p/SAMPLE_TIME;
             rddot = - pow(w,2) * r/SAMPLE_TIME;
             
@@ -76,6 +84,9 @@ class Fuser : public TinyEKF {
             fx[3] = rdot + rddot;
             fx[4] = w;
             fx[5] = L;
+            fx[6] = x0;
+            fx[7] = y0;
+            fx[8] = z0;
 
             // So process model Jacobian is identity matrix
             for(int i = 0;i<Nsta;i++){
@@ -88,9 +99,9 @@ class Fuser : public TinyEKF {
             F[2][4] = - 2*w*p/SAMPLE_TIME;
             F[3][4] = - 2*w*r/SAMPLE_TIME;
 
-            hx[0] = L * sin(fx[0]);
-            hx[1] = L * sin(fx[1]);
-            hx[2] = L * cos(fx[0]) * cos(fx[1]);
+            hx[0] = L * sin(fx[0]) + x0;
+            hx[1] = L * sin(fx[1]) + y0;
+            hx[2] = L * cos(fx[0]) * cos(fx[1]) + z0;
 
             // Jacobian of measurement function
             H[0][0] = L * cos(p); 
@@ -100,8 +111,13 @@ class Fuser : public TinyEKF {
             H[0][5] = sin(p);
             H[1][5] = sin(r);
             H[2][5] = cos(r)* cos(p);
+            H[0][6] = 1.0;
+            H[1][7] = 1.0;
+            H[2][8] = 1.0;
         }
 };
+
+Fuser ekf;
 
 void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
@@ -143,12 +159,19 @@ void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
     }
 }
 
+void start_ekf_callback(geometry_msgs::Point mast_base)
+{
+    start_ekf = true;
+    ekf.setX(6,mast_base.x);
+    ekf.setX(7,mast_base.y);
+    ekf.setX(8,mast_base.z);
+}
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "ekf");
     ros::Time::init();
     ros::Rate rate(SAMPLE_TIME);
-    ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Starting up.");
+    ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Initializing.");
     ros::NodeHandle node_handle;
 
     bool use_perception;
@@ -169,7 +192,8 @@ int main(int argc, char** argv) {
     }
     ros::Subscriber gt_module_pose_sub = node_handle.subscribe(
         "/simulator/module/ground_truth/pose", 10, &gt_ModulePoseCallback);
-
+    ros::Subscriber start_ekf_sub = node_handle.subscribe("/ekf/start", 1, &start_ekf_callback);
+        
     //publishers
     ros::Publisher filtered_module_state_pub = 
             node_handle.advertise<mavros_msgs::PositionTarget>("/ekf/module/state",10);
@@ -185,7 +209,6 @@ int main(int argc, char** argv) {
 
     geometry_msgs::TransformStamped transformStamped;
 
-    Fuser ekf;
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
     module_state.header.seq = 0;
@@ -204,12 +227,21 @@ int main(int argc, char** argv) {
     ekf_meas_vector.type = mavros_msgs::DebugValue::TYPE_DEBUG_ARRAY;
 
     //initiate first state vector
-    ekf.setX(4, 0.55);
-    ekf.setX(5,2.5);
+    ekf.setX(4, 0.55);  //todo, should be parameter?
+    ekf.setX(5,2.5);    //todo, should be parameter?
     measurement_received = false;
 
-    module_pose.header.seq = 0;
+    //wait for starting signal
+    while(!start_ekf && ros::ok())
+    {
+        ros::spinOnce();
+        rate.sleep();
+    }
+    
+    ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Starting up.");
+    
     //wait for first measurement
+    module_pose.header.seq = 0;
     while(module_pose.header.seq ==0 && ros::ok())
     {
         ros::spinOnce();
@@ -233,8 +265,8 @@ int main(int argc, char** argv) {
                 tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
             }
             double z[Mobs]; // x, y, z
-            z[0] = module_pose.pose.pose.position.x - 0.0957; //mast offset
-            z[1] = module_pose.pose.pose.position.y + 10.0;//mast offset
+            z[0] = module_pose.pose.pose.position.x;
+            z[1] = module_pose.pose.pose.position.y;
             z[2] = module_pose.pose.pose.position.z;
             
             if(!ekf.update(z))
@@ -259,9 +291,9 @@ int main(int argc, char** argv) {
 
         module_state.header.seq++; //seq is read only
         module_state.header.stamp = ros::Time::now();
-        module_state.position.x = L_mast * sin(X[0])+0.0957;
-        module_state.position.y = L_mast * sin(X[1])-10;
-        module_state.position.z = L_mast * cos(X[0]) * cos(X[1]);
+        module_state.position.x = L_mast * sin(X[0]) + X[6];
+        module_state.position.y = L_mast * sin(X[1]) + X[7];
+        module_state.position.z = L_mast * cos(X[0]) * cos(X[1]) + X[8];
         module_state.velocity.x = L_mast * X[2]*cos(X[0]);
         module_state.velocity.y = L_mast * X[3]*cos(X[1]);
         module_state.velocity.z = 0; //Not used, so not worth doing the calculations //todo: can be used
@@ -270,6 +302,7 @@ int main(int argc, char** argv) {
         module_state.acceleration_or_force.z = 0; //Not used, so not worth doing the calculations
         filtered_module_state_pub.publish(module_state);
         
+        #if DEBUG
         //save some data:
         double ekf_output_data[7];
         ekf_output_data[0] = module_state.position.x;
@@ -280,7 +313,7 @@ int main(int argc, char** argv) {
         ekf_output_data[5] = X[4];
         ekf_output_data[6] = X[5];
 
-        #if DEBUG
+        
         std::cout << std::fixed << std::setprecision(4) << "X =\t";
         for(int i = 0 ; i<7 ; i++){
             std::cout << ekf_output_data[i] << "\t";
