@@ -39,13 +39,14 @@ class Fuser : public TinyEKF {
         Fuser()
         {            
             // We approximate the process noise using a small constant
+            // p, r, p', r', omega, L_mast, x0, y0, z0
             this->setQ(0, 0, 0.0005);
             this->setQ(1, 1, 0.0005);
             this->setQ(2, 2, 0.00040);
             this->setQ(3, 3, 0.00040);
-            this->setQ(4, 4, 0.0001);
-            this->setQ(5, 5, 0.0001);
-            this->setQ(6, 6, 0.0001);
+            this->setQ(4, 4, 0.0001); // omega
+            this->setQ(5, 5, 0.0002); // L_mast
+            this->setQ(6, 6, 0.0001); 
             this->setQ(7, 7, 0.0001);
             this->setQ(8, 8, 0.0001);
 
@@ -118,10 +119,44 @@ class Fuser : public TinyEKF {
 };
 
 Fuser ekf;
+double x0_sum, y0_sum, z0_sum;
+double x0_avg, y0_avg, z0_avg;
+double x01, y01, z01;
+unsigned int nb_meas;
+ros::Time start_time;
 
 void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
     measurement_received = true;
+    x0_sum += module_pose.pose.pose.position.x;
+    y0_sum += module_pose.pose.pose.position.y;
+    z0_sum += module_pose.pose.pose.position.z;
+    nb_meas++;
+    if(!start_time.is_zero() && (ros::Time::now()-start_time).toSec() >= 1.0/ekf.getX(4)*M_PI*2. )
+    {
+        if(y01 != 0.){
+            if(start_time.isValid() && (ros::Time::now()-start_time).toSec() >= 1.5/ekf.getX(4)*M_PI*2.){
+                if(y0_avg ==0.){
+                    x0_avg = (x0_sum/nb_meas + x01)/2.;
+                    y0_avg = (y0_sum/nb_meas + y01)/2.;
+                    z0_avg = (z0_sum/nb_meas + z01)/2.;
+                    printf("x0_avg=%f,\ty=%f\tz=%f\n", x0_avg, y0_avg, z0_avg);
+                    ekf.setX(6,x0_avg);
+                    ekf.setX(7,y0_avg);
+                    //ekf.setX(8,z0_avg);
+
+                }
+            }
+        }
+        else{
+            x01 = x0_sum/nb_meas;
+            y01 = y0_sum/nb_meas;
+            z01 = z0_sum/nb_meas;
+            printf("x01=%f,\ty=%f\tz=%f\n", x01, y01, z01);
+        }
+    }
+
+
 }
 
 void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
@@ -249,7 +284,7 @@ int main(int argc, char** argv) {
     }
 
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
-    
+    start_time = ros::Time::now();
     while(ros::ok()){
         ekf.prediction();
         if(measurement_received){
