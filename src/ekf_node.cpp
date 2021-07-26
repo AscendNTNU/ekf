@@ -1,7 +1,7 @@
 
 // These must be defined before including TinyEKF.h
 #define Nsta 6     // Nb states
-#define Mobs 4     // Nb measurements
+#define Mobs 3     // Nb measurements x,y and z
 #define DEBUG false// print the matrices elements
 #include "TinyEKF.h"
 
@@ -49,8 +49,7 @@ class Fuser : public TinyEKF {
             this->setR(0, 0, 2.667);
             this->setR(1, 1, 5.667);
             this->setR(2, 2, 5.667);
-            this->setR(3, 3, 1.2667);
-
+            
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
         }
@@ -92,14 +91,12 @@ class Fuser : public TinyEKF {
             hx[0] = L * sin(fx[0]);
             hx[1] = L * sin(fx[1]);
             hx[2] = L * cos(fx[0]) * cos(fx[1]);
-            hx[3] = fx[0];
 
             // Jacobian of measurement function
             H[0][0] = L * cos(p); 
             H[1][1] = L * cos(r);
             H[2][0] = - L * cos(r) * sin(p);
             H[2][1] = - L * cos(p) * sin(r);
-            H[3][0] = 1.0;
             H[0][5] = sin(p);
             H[1][5] = sin(r);
             H[2][5] = cos(r)* cos(p);
@@ -235,20 +232,11 @@ int main(int argc, char** argv) {
                 }
                 tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
             }
-            double z[Mobs]; // x, y, z, pitch
+            double z[Mobs]; // x, y, z
             z[0] = module_pose.pose.pose.position.x - 0.0957; //mast offset
             z[1] = module_pose.pose.pose.position.y + 10.0;//mast offset
             z[2] = module_pose.pose.pose.position.z;
             
-            //extracting the pitch from the quaternion
-            geometry_msgs::Quaternion quaternion = module_pose.pose.pose.orientation;
-            tf2::Quaternion quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-            // If the quaternion is invalid, e.g. (0, 0, 0, 0), getRPY will return nan, so in that case we just set
-            // it to zero.
-            z[3] = std::isnan(pitch) ? 0.0 : pitch;
-
             if(!ekf.update(z))
                 std::cout << "error with ekf update" <<std::endl;
                 //todo: restart the kf whith current state ASAP
