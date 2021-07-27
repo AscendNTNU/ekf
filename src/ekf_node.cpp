@@ -119,44 +119,50 @@ class Fuser : public TinyEKF {
 };
 
 Fuser ekf;
-double x0_sum, y0_sum, z0_sum;
-double x0_avg, y0_avg, z0_avg;
-double x01, y01, z01;
-unsigned int nb_meas;
 ros::Time start_time;
+geometry_msgs::TransformStamped transformStamped;
+tf2_ros::Buffer tfBuffer;
+bool use_perception;
+double x0_min, x0_max, y0_min, y0_max;
 
 void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr module_pose_ptr){
     module_pose = *module_pose_ptr;
-    measurement_received = true;
-    x0_sum += module_pose.pose.pose.position.x;
-    y0_sum += module_pose.pose.pose.position.y;
-    z0_sum += module_pose.pose.pose.position.z;
-    nb_meas++;
-    if(!start_time.is_zero() && (ros::Time::now()-start_time).toSec() >= 1.0/ekf.getX(4)*M_PI*2. )
-    {
-        if(y01 != 0.){
-            if(start_time.isValid() && (ros::Time::now()-start_time).toSec() >= 1.5/ekf.getX(4)*M_PI*2.){
-                if(y0_avg ==0.){
-                    x0_avg = (x0_sum/nb_meas + x01)/2.;
-                    y0_avg = (y0_sum/nb_meas + y01)/2.;
-                    z0_avg = (z0_sum/nb_meas + z01)/2.;
-                    printf("x0_avg=%f,\ty=%f\tz=%f\n", x0_avg, y0_avg, z0_avg);
-                    ekf.setX(6,x0_avg);
-                    ekf.setX(7,y0_avg);
-                    //ekf.setX(8,z0_avg);
-
-                }
-            }
+    if (use_perception){
+        try{
+            transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
         }
-        else{
-            x01 = x0_sum/nb_meas;
-            y01 = y0_sum/nb_meas;
-            z01 = z0_sum/nb_meas;
-            printf("x01=%f,\ty=%f\tz=%f\n", x01, y01, z01);
+        catch (tf2::TransformException &ex) {
+            ROS_WARN("%s",ex.what());
+            ros::Duration(0.1).sleep();
         }
+        tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
     }
 
+    geometry_msgs::Point mp = module_pose.pose.pose.position;
+    measurement_received = true;
 
+    if(mp.x > x0_max)
+        x0_max = mp.x;
+    if(mp.x < x0_min)
+        x0_min = mp.x;
+    if(mp.y > y0_max)
+        y0_max = mp.y;
+    if(mp.y < y0_min)
+        y0_min = mp.y;
+    
+
+    if(!start_time.is_zero() && (ros::Time::now()-start_time).toSec() >= M_PI*2.0/ekf.getX(4) )
+    {
+        double x0_avg = (x0_max+x0_min)/2;
+        double y0_avg = (y0_max+y0_min)/2;
+//        ROS_INFO_STREAM("ekf: x0_avg=" << x0_avg
+//            << "\ty0_avg=" << y0_avg
+//            << "\txmin:" << x0_min << " xmax:" <<x0_max
+//            << " ymin:" << y0_min << " ymax:" <<y0_max);
+        ekf.setX(6,x0_avg);
+        ekf.setX(7,y0_avg);
+        //ekf.setX(8,z0_avg);
+    }
 }
 
 void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
@@ -209,7 +215,6 @@ int main(int argc, char** argv) {
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Initializing.");
     ros::NodeHandle node_handle;
 
-    bool use_perception;
     const std::string prefix = ros::this_node::getName() + "/";
     if (!node_handle.getParam(prefix + "use_perception", use_perception)) {
         ROS_FATAL_STREAM(ros::this_node::getName() << ": Could not find parameter: " << prefix + "use_perception");
@@ -239,10 +244,14 @@ int main(int argc, char** argv) {
 
 //    ros::Publisher tf_pose_pub = node_handle.advertise<geometry_msgs::PoseStamped>("/ekf/tf_pose",10);
 
-    tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
 
-    geometry_msgs::TransformStamped transformStamped;
+    // extrema of the mast base position
+    x0_min = std::numeric_limits<double>::infinity();
+    x0_max = -std::numeric_limits<double>::infinity();
+    y0_min = std::numeric_limits<double>::infinity();
+    y0_max = -std::numeric_limits<double>::infinity();
+
 
     double X[Nsta];
     mavros_msgs::PositionTarget module_state;
@@ -288,17 +297,6 @@ int main(int argc, char** argv) {
     while(ros::ok()){
         ekf.prediction();
         if(measurement_received){
-            if (use_perception){
-                try{
-                    transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
-                }
-                catch (tf2::TransformException &ex) {
-                    ROS_WARN("%s",ex.what());
-                    ros::Duration(1.0).sleep();
-                    continue;
-                }
-                tf2::doTransform(module_pose.pose.pose,module_pose.pose.pose,transformStamped);
-            }
             double z[Mobs]; // x, y, z
             z[0] = module_pose.pose.pose.position.x;
             z[1] = module_pose.pose.pose.position.y;
@@ -322,6 +320,7 @@ int main(int argc, char** argv) {
         
         ekf_state_vector.data.assign(X,X+Nsta);
         ekf_state_vector.header.seq++;
+        ekf_state_vector.header.stamp = ros::Time::now();
         ekf_state_pub.publish(ekf_state_vector);        
 
         module_state.header.seq++; //seq is read only
