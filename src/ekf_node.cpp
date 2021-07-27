@@ -46,8 +46,8 @@ class Fuser : public TinyEKF {
             this->setQ(3, 3, 0.00040);
             this->setQ(4, 4, 0.0001); // omega
             this->setQ(5, 5, 0.0002); // L_mast
-            this->setQ(6, 6, 0.0001); 
-            this->setQ(7, 7, 0.0001);
+            this->setQ(6, 6, 0.00005); 
+            this->setQ(7, 7, 0.00005);
             this->setQ(8, 8, 0.0001);
 
             // Same for measurement noise
@@ -270,9 +270,6 @@ int main(int argc, char** argv) {
     //ekf_meas_vector.index = -1;
     ekf_meas_vector.type = mavros_msgs::DebugValue::TYPE_DEBUG_ARRAY;
 
-    //initiate first state vector
-    ekf.setX(4, 0.55);  //todo, should be parameter?
-    ekf.setX(5,2.5);    //todo, should be parameter?
     measurement_received = false;
 
     //wait for starting signal
@@ -292,6 +289,10 @@ int main(int argc, char** argv) {
         rate.sleep();
     }
 
+    //initiate first state vector
+    ekf.setX(4, 0.55);  //todo, should be parameter?
+    ekf.setX(5,module_pose.pose.pose.position.z);
+    
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Active.");
     start_time = ros::Time::now();
     while(ros::ok()){
