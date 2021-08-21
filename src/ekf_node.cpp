@@ -24,7 +24,7 @@
 #include <unistd.h> //to get the current directory
 
 
-#define SAMPLE_TIME 25.0
+#define SAMPLE_FREQUENCY 25.0
 
 geometry_msgs::PoseWithCovarianceStamped module_pose;
 bool start_ekf = false;
@@ -75,14 +75,14 @@ class Fuser : public TinyEKF {
             double y0 = this->x[7];
             double z0 = this->x[8];
 
-            pddot = - pow(w,2) * p/SAMPLE_TIME;
-            rddot = - pow(w,2) * r/SAMPLE_TIME;
+            pddot = - pow(w,2) * p;
+            rddot = - pow(w,2) * r;
             
             // Process model is f(x) = x_{k+1}
-            fx[0] = p + pdot/SAMPLE_TIME;
-            fx[1] = r + rdot/SAMPLE_TIME;
-            fx[2] = pdot + pddot;
-            fx[3] = rdot + rddot;
+            fx[0] = p + pdot/SAMPLE_FREQUENCY;
+            fx[1] = r + rdot/SAMPLE_FREQUENCY;
+            fx[2] = pdot + pddot/SAMPLE_FREQUENCY;
+            fx[3] = rdot + rddot/SAMPLE_FREQUENCY;
             fx[4] = w;
             fx[5] = L;
             fx[6] = x0;
@@ -93,12 +93,12 @@ class Fuser : public TinyEKF {
             for(int i = 0;i<Nsta;i++){
                 F[i][i] = 1.0;
             }
-            F[0][2] = 1.0/SAMPLE_TIME;
-            F[1][3] = 1.0/SAMPLE_TIME;
-            F[2][0] = - pow(w,2) / SAMPLE_TIME;
-            F[3][1] = - pow(w,2) / SAMPLE_TIME;
-            F[2][4] = - 2*w*p/SAMPLE_TIME;
-            F[3][4] = - 2*w*r/SAMPLE_TIME;
+            F[0][2] = 1.0/SAMPLE_FREQUENCY;
+            F[1][3] = 1.0/SAMPLE_FREQUENCY;
+            F[2][0] = - pow(w,2) / SAMPLE_FREQUENCY;
+            F[3][1] = - pow(w,2) / SAMPLE_FREQUENCY;
+            F[2][4] = - 2*w*p/SAMPLE_FREQUENCY;
+            F[3][4] = - 2*w*r/SAMPLE_FREQUENCY;
 
             hx[0] = L * sin(fx[0]) + x0;
             hx[1] = L * sin(fx[1]) + y0;
@@ -180,8 +180,6 @@ void gt_ModulePoseCallback(geometry_msgs::PoseStampedConstPtr module_pose_ptr){
         gt_ref_prev.acceleration_or_force.y = gt_ref.acceleration_or_force.y;
         gt_ref_prev.acceleration_or_force.z = gt_ref.acceleration_or_force.z;
         
-
-        
         gt_ref.position.x = module_pose_ptr->pose.position.x;
         gt_ref.position.y = module_pose_ptr->pose.position.y;
         gt_ref.position.z = module_pose_ptr->pose.position.z;
@@ -211,7 +209,7 @@ void start_ekf_callback(geometry_msgs::Point mast_base)
 int main(int argc, char** argv) {
     ros::init(argc, argv, "ekf");
     ros::Time::init();
-    ros::Rate rate(SAMPLE_TIME);
+    ros::Rate rate(SAMPLE_FREQUENCY);
     ROS_INFO_STREAM(ros::this_node::getName().c_str() << ": Initializing.");
     ros::NodeHandle node_handle;
 
