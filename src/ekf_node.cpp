@@ -129,7 +129,7 @@ void perceptionPoseCallback(geometry_msgs::PoseWithCovarianceStampedConstPtr mod
     module_pose = *module_pose_ptr;
     if (use_perception){
         try{
-            transformStamped = tfBuffer.lookupTransform("map", "camera", ros::Time(0));
+            transformStamped = tfBuffer.lookupTransform("map", module_pose.header.frame_id, ros::Time(0));
         }
         catch (tf2::TransformException &ex) {
             ROS_WARN("%s",ex.what());
