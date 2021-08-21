@@ -105,16 +105,17 @@ class Fuser : public TinyEKF {
             hx[2] = L * cos(fx[0]) * cos(fx[1]) + z0;
 
             // Jacobian of measurement function
-            H[0][0] = L * cos(p); 
-            H[1][1] = L * cos(r);
-            H[2][0] = - L * cos(r) * sin(p);
-            H[2][1] = - L * cos(p) * sin(r);
+            H[0][0] = L * cos(p) *  pdot; 
+            H[1][1] = L * cos(r) * rdot;
+            H[2][0] = - L * cos(r) * sin(p) * pdot;
+            H[2][1] = - L * cos(p) * sin(r) * rdot;
             H[0][5] = sin(p);
             H[1][5] = sin(r);
             H[2][5] = cos(r)* cos(p);
             H[0][6] = 1.0;
             H[1][7] = 1.0;
             H[2][8] = 1.0;
+
         }
 };
 
