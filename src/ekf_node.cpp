@@ -40,20 +40,20 @@ class Fuser : public TinyEKF {
         {            
             // We approximate the process noise using a small constant
             // p, r, p', r', omega, L_mast, x0, y0, z0
-            this->setQ(0, 0, 0.0005);
-            this->setQ(1, 1, 0.0005);
-            this->setQ(2, 2, 0.00040);
-            this->setQ(3, 3, 0.00040);
-            this->setQ(4, 4, 0.0001); // omega
-            this->setQ(5, 5, 0.0002); // L_mast
-            this->setQ(6, 6, 0.00005); 
-            this->setQ(7, 7, 0.00005);
-            this->setQ(8, 8, 0.0001);
+            this->setQ(0, 0, 0.005);
+            this->setQ(1, 1, 0.005);
+            this->setQ(2, 2, 0.040);
+            this->setQ(3, 3, 0.040);
+            this->setQ(4, 4, 0.001); // omega
+            this->setQ(5, 5, 0.002); // L_mast
+            this->setQ(6, 6, 0.005); 
+            this->setQ(7, 7, 0.005);
+            this->setQ(8, 8, 0.001);
 
             // Same for measurement noise
             this->setR(0, 0, 2.667);
             this->setR(1, 1, 5.667);
-            this->setR(2, 2, 5.667);
+            this->setR(2, 2, 0.667);
             
             for(int i =0;i<Nsta;i++)
                 this->setP(i,i,this->getQ(i,i));
